@@ -14,13 +14,162 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bcp_movements: {
+        Row: {
+          amount: number
+          concept: string
+          created_at: string
+          date: string | null
+          id: string
+          seq: number
+          source: string
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          concept: string
+          created_at?: string
+          date?: string | null
+          id?: string
+          seq?: number
+          source?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          concept?: string
+          created_at?: string
+          date?: string | null
+          id?: string
+          seq?: number
+          source?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      installments: {
+        Row: {
+          concept: string
+          created_at: string
+          first_date: string
+          id: string
+          monthly_amount: number
+          num_installments: number
+          original_amount: number
+          user_id: string | null
+        }
+        Insert: {
+          concept: string
+          created_at?: string
+          first_date: string
+          id?: string
+          monthly_amount: number
+          num_installments: number
+          original_amount: number
+          user_id?: string | null
+        }
+        Update: {
+          concept?: string
+          created_at?: string
+          first_date?: string
+          id?: string
+          monthly_amount?: number
+          num_installments?: number
+          original_amount?: number
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      io_expenses: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          date: string
+          description: string
+          id: string
+          source: string
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          category?: string
+          created_at?: string
+          date?: string
+          description: string
+          id?: string
+          source?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          date?: string
+          description?: string
+          id?: string
+          source?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          bbva_amount: number
+          bbva_date: string | null
+          created_at: string
+          io_cut_day: number
+          io_pay_day: number
+          mesada1_amount: number
+          mesada1_day: number
+          mesada2_amount: number
+          mesada2_day: number
+          projection_months: number
+          shortcut_token: string
+          user_id: string
+          yape_amount: number
+          yape_day: number
+        }
+        Insert: {
+          bbva_amount?: number
+          bbva_date?: string | null
+          created_at?: string
+          io_cut_day?: number
+          io_pay_day?: number
+          mesada1_amount?: number
+          mesada1_day?: number
+          mesada2_amount?: number
+          mesada2_day?: number
+          projection_months?: number
+          shortcut_token?: string
+          user_id: string
+          yape_amount?: number
+          yape_day?: number
+        }
+        Update: {
+          bbva_amount?: number
+          bbva_date?: string | null
+          created_at?: string
+          io_cut_day?: number
+          io_pay_day?: number
+          mesada1_amount?: number
+          mesada1_day?: number
+          mesada2_amount?: number
+          mesada2_day?: number
+          projection_months?: number
+          shortcut_token?: string
+          user_id?: string
+          yape_amount?: number
+          yape_day?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      init_my_account: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

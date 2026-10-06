@@ -33,8 +33,11 @@ export function SettingsSheet({ open, onOpenChange, profile, onSaved }: { open: 
   const save = async () => {
     const patch: Record<string, string | number | null> = {};
     for (const f of FIELDS) patch[f.k] = f.type === "date" ? form[f.k] || null : Number(form[f.k]) || 0;
-    const { error } = await supabase.from("profiles").update(patch).eq("user_id", profile.user_id);
-    if (error) return toast.error(error.message);
+    const { error } = await supabase.from("profiles").update(patch as never).eq("user_id", profile.user_id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success("Guardado");
     onSaved();
   };

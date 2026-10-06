@@ -37,7 +37,7 @@ export const Route = createFileRoute("/api/public/shortcut")({
           return Response.json({ ok: false, mensaje: "JSON inválido" }, { status: 400 });
         }
         const headerToken = request.headers.get("x-token");
-        if (headerToken && body && typeof body === "object") (body as Record<string, unknown>).token ??= headerToken;
+        if (headerToken && body && typeof body === "object") (body as Record<string, unknown>)["token"] ??= headerToken;
         const parsed = schema.safeParse(body);
         if (!parsed.success) {
           return Response.json({ ok: false, mensaje: "Datos inválidos", errores: parsed.error.flatten() }, { status: 400 });

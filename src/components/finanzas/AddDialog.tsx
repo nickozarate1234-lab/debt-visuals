@@ -64,7 +64,7 @@ export function AddDialog({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const a = Number(amount);
-    if (!desc.trim() || !Number.isFinite(a) || a === 0) return toast.error("Completa monto y descripción");
+    if (!desc.trim() || !Number.isFinite(a) || a === 0) { toast.error("Completa monto y descripción"); return; }
     setBusy(true);
     let error;
     if (kind === "io") {
@@ -81,7 +81,8 @@ export function AddDialog({
       const k = parseInt(n);
       if (!m || !k) {
         setBusy(false);
-        return toast.error("Completa cuotas y monto mensual");
+        toast.error("Completa cuotas y monto mensual");
+        return;
       }
       ({ error } = await supabase.from("installments").insert({
         user_id: userId,
@@ -93,7 +94,10 @@ export function AddDialog({
       }));
     }
     setBusy(false);
-    if (error) return toast.error(error.message);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success("Registrado");
     reset();
     onOpenChange(false);

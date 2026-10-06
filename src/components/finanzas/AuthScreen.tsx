@@ -18,7 +18,10 @@ export function AuthScreen() {
         ? await supabase.auth.signInWithPassword({ email, password: pass })
         : await supabase.auth.signUp({ email, password: pass, options: { emailRedirectTo: window.location.origin } });
     setBusy(false);
-    if (error) return toast.error(error.message);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     if (mode === "up" && !data.session) toast.success("Revisa tu correo para confirmar la cuenta");
   };
 

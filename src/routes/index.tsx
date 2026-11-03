@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useFinanceData, useSession } from "@/hooks/use-finance";
 import { AuthScreen } from "@/components/finanzas/AuthScreen";
 import { AddDialog, type AddKind } from "@/components/finanzas/AddDialog";
+import { VoiceButton } from "@/components/finanzas/VoiceButton";
 import { SettingsSheet } from "@/components/finanzas/SettingsSheet";
 import {
   currentBalance,
@@ -136,6 +137,7 @@ function App({ userId }: { userId: string }) {
       </nav>
 
       <AddDialog open={addOpen} onOpenChange={setAddOpen} kind={addKind} setKind={setAddKind} userId={userId} />
+      <VoiceButton userId={userId} />
       {profile && <SettingsSheet open={settings} onOpenChange={setSettings} profile={profile} onSaved={reload} />}
     </div>
   );

@@ -7,6 +7,7 @@ import { useFinanceData, useSession } from "@/hooks/use-finance";
 import { AuthScreen } from "@/components/finanzas/AuthScreen";
 import { AddDialog, type AddKind } from "@/components/finanzas/AddDialog";
 import { VoiceButton } from "@/components/finanzas/VoiceButton";
+import { VoucherButton } from "@/components/finanzas/VoucherButton";
 import { SettingsSheet } from "@/components/finanzas/SettingsSheet";
 import {
   currentBalance,
@@ -100,9 +101,12 @@ function App({ userId }: { userId: string }) {
     <div className="mx-auto flex min-h-screen max-w-xl flex-col">
       <header className="sticky top-0 z-20 flex items-center justify-between border-b bg-background/85 px-5 py-4 backdrop-blur">
         <h1 className="font-display text-xl font-bold">Mis Finanzas</h1>
-        <button onClick={() => setSettings(true)} aria-label="Info fija" className="rounded-full p-2 hover:bg-muted">
-          <Settings className="size-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <VoucherButton userId={userId} />
+          <button onClick={() => setSettings(true)} aria-label="Info fija" className="rounded-full p-2 hover:bg-muted">
+            <Settings className="size-5" />
+          </button>
+        </div>
       </header>
 
       <main className="flex-1 space-y-4 px-4 pt-4 pb-32">

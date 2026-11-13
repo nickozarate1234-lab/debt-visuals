@@ -14,41 +14,123 @@ export type Database = {
   }
   public: {
     Tables: {
+      accounts: {
+        Row: {
+          archived: boolean
+          created_at: string
+          cut_day: number
+          id: string
+          kind: string
+          legacy: string | null
+          name: string
+          pay_day: number
+          user_id: string
+        }
+        Insert: {
+          archived?: boolean
+          created_at?: string
+          cut_day?: number
+          id?: string
+          kind?: string
+          legacy?: string | null
+          name: string
+          pay_day?: number
+          user_id: string
+        }
+        Update: {
+          archived?: boolean
+          created_at?: string
+          cut_day?: number
+          id?: string
+          kind?: string
+          legacy?: string | null
+          name?: string
+          pay_day?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       bcp_movements: {
         Row: {
+          account_id: string | null
           amount: number
           concept: string
           created_at: string
           date: string | null
           id: string
+          paid_card_id: string | null
           seq: number
           source: string
+          transfer_id: string | null
           user_id: string | null
         }
         Insert: {
+          account_id?: string | null
           amount: number
           concept: string
           created_at?: string
           date?: string | null
           id?: string
+          paid_card_id?: string | null
           seq?: number
           source?: string
+          transfer_id?: string | null
           user_id?: string | null
         }
         Update: {
+          account_id?: string | null
           amount?: number
           concept?: string
           created_at?: string
           date?: string | null
           id?: string
+          paid_card_id?: string | null
           seq?: number
           source?: string
+          transfer_id?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      debts: {
+        Row: {
+          created_at: string
+          id: string
+          monthly_amount: number
+          name: string
+          num_payments: number | null
+          pay_account_id: string | null
+          pay_day: number
+          start_date: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          monthly_amount: number
+          name: string
+          num_payments?: number | null
+          pay_account_id?: string | null
+          pay_day?: number
+          start_date?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          monthly_amount?: number
+          name?: string
+          num_payments?: number | null
+          pay_account_id?: string | null
+          pay_day?: number
+          start_date?: string
+          user_id?: string
         }
         Relationships: []
       }
       installments: {
         Row: {
+          account_id: string | null
           concept: string
           created_at: string
           first_date: string
@@ -59,6 +141,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          account_id?: string | null
           concept: string
           created_at?: string
           first_date: string
@@ -69,6 +152,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          account_id?: string | null
           concept?: string
           created_at?: string
           first_date?: string
@@ -82,6 +166,7 @@ export type Database = {
       }
       io_expenses: {
         Row: {
+          account_id: string | null
           amount: number
           category: string
           created_at: string
@@ -92,6 +177,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          account_id?: string | null
           amount: number
           category?: string
           created_at?: string
@@ -102,6 +188,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          account_id?: string | null
           amount?: number
           category?: string
           created_at?: string

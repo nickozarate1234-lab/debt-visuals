@@ -5,21 +5,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { IO_CATEGORIES, todayStr } from "@/lib/finance";
+import { IO_CATEGORIES, todayStr, type Account } from "@/lib/finance";
 import { cn } from "@/lib/utils";
 
-export type AddKind = "io" | "bcp" | "cuota";
+export type AddKind = "io" | "bcp" | "traspaso" | "cuota" | "deuda";
 
 function Seg<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { v: T; l: string }[] }) {
   return (
-    <div className="grid gap-1 rounded-xl bg-muted p-1" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
+    <div className="flex flex-wrap gap-1 rounded-xl bg-muted p-1">
       {options.map((o) => (
         <button
           key={o.v}
           type="button"
           onClick={() => onChange(o.v)}
           className={cn(
-            "rounded-lg py-2 text-sm font-semibold transition",
+            "min-w-0 flex-1 basis-[30%] rounded-lg px-1 py-2 text-sm font-semibold transition",
             value === o.v ? "bg-primary text-primary-foreground" : "text-muted-foreground",
           )}
         >
@@ -36,13 +36,25 @@ export function AddDialog({
   kind,
   setKind,
   userId,
+  accounts,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   kind: AddKind;
   setKind: (k: AddKind) => void;
   userId: string;
+  accounts: Account[];
 }) {
+  const debits = accounts.filter((a) => a.kind === "debito" && !a.archived);
+  const cards = accounts.filter((a) => a.kind === "credito" && !a.archived);
+  const [debitId, setDebitId] = useState("");
+  const [cardId, setCardId] = useState("");
+  const [toId, setToId] = useState("");
+  const [payDay, setPayDay] = useState("15");
+  const dId = debitId || debits[0]?.id || "";
+  const cId = cardId || cards[0]?.id || "";
+  const destOptions = accounts.filter((a) => !a.archived && a.id !== dId);
+  const tId = toId && toId !== dId ? toId : destOptions[0]?.id || "";
   const [amount, setAmount] = useState("");
   const [desc, setDesc] = useState("");
   const [date, setDate] = useState(todayStr());
@@ -64,17 +76,43 @@ export function AddDialog({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const a = Number(amount);
-    if (!desc.trim() || !Number.isFinite(a) || a === 0) { toast.error("Completa monto y descripción"); return; }
+    if ((kind !== "traspaso" && !desc.trim()) || !Number.isFinite(a) || a === 0) { toast.error("Completa monto y descripción"); return; }
     setBusy(true);
     let error;
     if (kind === "io") {
-      ({ error } = await supabase.from("io_expenses").insert({ user_id: userId, date, description: desc.trim().slice(0, 200), category: cat, amount: a }));
+      ({ error } = await supabase.from("io_expenses").insert({ user_id: userId, account_id: cId || null, date, description: desc.trim().slice(0, 200), category: cat, amount: a }));
     } else if (kind === "bcp") {
       ({ error } = await supabase.from("bcp_movements").insert({
         user_id: userId,
+        account_id: dId || null,
         date: noDate ? null : date,
         concept: desc.trim().slice(0, 200),
         amount: dir === "ingreso" ? Math.abs(a) : -Math.abs(a),
+      }));
+    } else if (kind === "traspaso") {
+      const dest = accounts.find((x) => x.id === tId);
+      const from = accounts.find((x) => x.id === dId);
+      if (!dest || !from) { setBusy(false); toast.error("Elige origen y destino"); return; }
+      const v = Math.abs(a);
+      const note = desc.trim().slice(0, 150);
+      if (dest.kind === "credito") {
+        ({ error } = await supabase.from("bcp_movements").insert({
+          user_id: userId, account_id: from.id, paid_card_id: dest.id, date,
+          concept: note || `Pago tarjeta ${dest.name}`, amount: -v, source: "pago_tarjeta",
+        }));
+      } else {
+        const tid = crypto.randomUUID();
+        ({ error } = await supabase.from("bcp_movements").insert([
+          { user_id: userId, account_id: from.id, transfer_id: tid, date, concept: note || `Traspaso a ${dest.name}`, amount: -v, source: "traspaso" },
+          { user_id: userId, account_id: dest.id, transfer_id: tid, date, concept: note || `Traspaso desde ${from.name}`, amount: v, source: "traspaso" },
+        ]));
+      }
+    } else if (kind === "deuda") {
+      const k = n.trim() ? parseInt(n) : null;
+      ({ error } = await supabase.from("debts").insert({
+        user_id: userId, name: desc.trim().slice(0, 100), monthly_amount: Math.abs(a),
+        pay_day: Math.min(31, Math.max(1, Number(payDay) || 15)), start_date: date,
+        num_payments: k && k > 0 ? k : null, pay_account_id: dId || null,
       }));
     } else {
       const m = Number(monthly);
@@ -91,6 +129,7 @@ export function AddDialog({
         num_installments: k,
         monthly_amount: m,
         first_date: date,
+        account_id: cId || null,
       }));
     }
     setBusy(false);
@@ -110,16 +149,35 @@ export function AddDialog({
           <DialogTitle className="font-display">Nuevo movimiento</DialogTitle>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
-          <Seg value={kind} onChange={setKind} options={[{ v: "io", l: "Tarjeta iO" }, { v: "bcp", l: "BCP" }, { v: "cuota", l: "Cuotas" }]} />
+          <Seg
+            value={kind}
+            onChange={setKind}
+            options={[
+              { v: "io", l: "Crédito" },
+              { v: "bcp", l: "Débito" },
+              { v: "traspaso", l: "Traspaso" },
+              { v: "cuota", l: "Cuotas" },
+              { v: "deuda", l: "Deuda" },
+            ]}
+          />
+          {(kind === "io" || kind === "cuota") && cards.length > 1 && (
+            <Picker label="Tarjeta" value={cId} onChange={setCardId} list={cards} />
+          )}
+          {(kind === "bcp" || kind === "traspaso" || kind === "deuda") && debits.length > 0 && (kind !== "bcp" || debits.length > 1) && (
+            <Picker label={kind === "traspaso" ? "Desde" : kind === "deuda" ? "Se paga desde" : "Cuenta"} value={dId} onChange={setDebitId} list={debits} />
+          )}
+          {kind === "traspaso" && (
+            <Picker label="Hacia (cuenta o tarjeta a pagar)" value={tId} onChange={setToId} list={destOptions} />
+          )}
           {kind === "bcp" && (
             <Seg value={dir} onChange={setDir} options={[{ v: "egreso", l: "Egreso" }, { v: "ingreso", l: "Ingreso" }]} />
           )}
           <div className="space-y-1.5">
-            <Label>{kind === "cuota" ? "Monto original" : "Monto (S/)"}</Label>
+            <Label>{kind === "cuota" ? "Monto original" : kind === "deuda" ? "Cuota mensual (S/)" : "Monto (S/)"}</Label>
             <Input inputMode="decimal" type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-12 text-lg num" autoFocus />
           </div>
           <div className="space-y-1.5">
-            <Label>Descripción</Label>
+            <Label>{kind === "deuda" ? "Nombre de la deuda" : kind === "traspaso" ? "Nota (opcional)" : "Descripción"}</Label>
             <Input value={desc} onChange={(e) => setDesc(e.target.value)} maxLength={200} className="h-11" />
           </div>
           {kind === "io" && (
@@ -146,8 +204,20 @@ export function AddDialog({
               </div>
             </div>
           )}
+          {kind === "deuda" && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Día de pago</Label>
+                <Input type="number" value={payDay} onChange={(e) => setPayDay(e.target.value)} className="h-11" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>N° pagos (vacío = sin fin)</Label>
+                <Input type="number" value={n} onChange={(e) => setN(e.target.value)} className="h-11" />
+              </div>
+            </div>
+          )}
           <div className="space-y-1.5">
-            <Label>{kind === "cuota" ? "Fecha 1ra cuota" : "Fecha"}</Label>
+            <Label>{kind === "cuota" ? "Fecha 1ra cuota" : kind === "deuda" ? "Desde (1er pago)" : "Fecha"}</Label>
             <Input type="date" value={date} disabled={noDate} onChange={(e) => setDate(e.target.value)} className="h-11" />
             {kind === "bcp" && (
               <label className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -161,5 +231,21 @@ export function AddDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function Picker({ label, value, onChange, list }: { label: string; value: string; onChange: (v: string) => void; list: Account[] }) {
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <div className="flex flex-wrap gap-2">
+        {list.map((a) => (
+          <button key={a.id} type="button" onClick={() => onChange(a.id)} className={cn("rounded-full border px-3 py-1.5 text-sm", value === a.id ? "border-primary bg-primary/15 text-primary" : "text-muted-foreground")}>
+            {a.name}
+            {a.kind === "credito" ? " · tarjeta" : ""}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

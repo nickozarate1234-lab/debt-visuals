@@ -10,6 +10,15 @@ import { VoiceButton } from "@/components/finanzas/VoiceButton";
 import { VoucherButton } from "@/components/finanzas/VoucherButton";
 import { SettingsSheet } from "@/components/finanzas/SettingsSheet";
 import {
+  cardOf,
+  cardPaymentOn,
+  cycle,
+  debitOf,
+  debtDates,
+  debtRemaining,
+  addMonths,
+  type Account,
+  type Debt,
   currentBalance,
   fmtDate,
   installmentActive,
@@ -27,7 +36,7 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Mis Finanzas — BCP, iO y proyección" },
+      { title: "Mis Finanzas — cuentas, tarjetas y proyección" },
       { name: "description", content: "Saldo BCP, gastos con tarjeta iO, cuotas y proyección de saldo en un solo lugar." },
       { property: "og:title", content: "Mis Finanzas" },
       { property: "og:description", content: "Saldo BCP, gastos iO, cuotas y proyección de saldo." },
@@ -42,8 +51,8 @@ type Tab = "resumen" | "liquidez" | "io" | "cuotas" | "proyeccion";
 const TABS: { id: Tab; l: string; icon: typeof Home }[] = [
   { id: "resumen", l: "Resumen", icon: Home },
   { id: "liquidez", l: "Liquidez", icon: Wallet },
-  { id: "io", l: "Gastos iO", icon: CreditCard },
-  { id: "cuotas", l: "Cuotas", icon: Receipt },
+  { id: "io", l: "Tarjetas", icon: CreditCard },
+  { id: "cuotas", l: "Deudas", icon: Receipt },
   { id: "proyeccion", l: "Proyección", icon: LineChart },
 ];
 
@@ -79,21 +88,22 @@ function Row({ title, sub, right, onDelete }: { title: string; sub: string; righ
   );
 }
 
-async function del(table: "bcp_movements" | "io_expenses" | "installments", id: string) {
+async function del(table: "bcp_movements" | "io_expenses" | "installments" | "debts", id: string, transferId?: string | null) {
   if (!confirm("¿Eliminar este registro?")) return;
-  const { error } = await supabase.from(table).delete().eq("id", id);
+  const q = supabase.from(table).delete();
+  const { error } = transferId ? await q.eq("transfer_id", transferId) : await q.eq("id", id);
   if (error) toast.error(error.message);
 }
 
 function App({ userId }: { userId: string }) {
-  const { profile, bcp, io, cuotas, loading, reload } = useFinanceData(true);
+  const { profile, bcp, io, cuotas, accounts, debts, loading, reload } = useFinanceData(true);
   const [tab, setTab] = useState<Tab>("resumen");
   const [addOpen, setAddOpen] = useState(false);
   const [addKind, setAddKind] = useState<AddKind>("io");
   const [settings, setSettings] = useState(false);
 
   const openAdd = () => {
-    setAddKind(tab === "liquidez" ? "bcp" : tab === "cuotas" ? "cuota" : "io");
+    setAddKind(tab === "liquidez" ? "bcp" : tab === "cuotas" ? "deuda" : "io");
     setAddOpen(true);
   };
 
@@ -117,7 +127,7 @@ function App({ userId }: { userId: string }) {
             ))}
           </div>
         ) : (
-          <Views tab={tab} profile={profile} bcp={bcp} io={io} cuotas={cuotas} />
+          <Views tab={tab} profile={profile} bcp={bcp} io={io} cuotas={cuotas} accounts={accounts} debts={debts} />
         )}
       </main>
 
@@ -140,29 +150,65 @@ function App({ userId }: { userId: string }) {
         </div>
       </nav>
 
-      <AddDialog open={addOpen} onOpenChange={setAddOpen} kind={addKind} setKind={setAddKind} userId={userId} />
+      <AddDialog open={addOpen} onOpenChange={setAddOpen} kind={addKind} setKind={setAddKind} userId={userId} accounts={accounts} />
       <VoiceButton userId={userId} />
-      {profile && <SettingsSheet open={settings} onOpenChange={setSettings} profile={profile} onSaved={reload} />}
+      {profile && <SettingsSheet open={settings} onOpenChange={setSettings} profile={profile} accounts={accounts} onSaved={reload} />}
     </div>
   );
 }
 
-function Views({ tab, profile, bcp, io, cuotas }: { tab: Tab; profile: Profile } & Pick<ReturnType<typeof useFinanceData>, "bcp" | "io" | "cuotas">) {
+type Data = Pick<ReturnType<typeof useFinanceData>, "bcp" | "io" | "cuotas" | "accounts" | "debts">;
+
+function Chips({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { v: string; l: string }[] }) {
+  if (options.length < 2) return null;
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-1">
+      {options.map((o) => (
+        <button key={o.v} onClick={() => onChange(o.v)} className={cn("shrink-0 rounded-full border px-3 py-1.5 text-sm", value === o.v ? "border-primary bg-primary/15 text-primary" : "text-muted-foreground")}>
+          {o.l}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Views({ tab, profile, bcp, io, cuotas, accounts, debts }: { tab: Tab; profile: Profile } & Data) {
   const today = todayStr();
-  const proj = useMemo(() => project(profile, bcp, io, cuotas, today), [profile, bcp, io, cuotas, today]);
+  const proj = useMemo(() => project(profile, bcp, io, cuotas, today, accounts, debts), [profile, bcp, io, cuotas, today, accounts, debts]);
   const bal = currentBalance(bcp);
-  const rows = useMemo(() => withBalances(bcp).reverse(), [bcp]);
-  const nextPay = proj.events.find((e) => e.concept.startsWith("Pago iO"));
+  const debits = accounts.filter((a) => a.kind === "debito");
+  const cards = accounts.filter((a) => a.kind === "credito" && !a.archived);
+  const nameOf = (id: string | null) => accounts.find((a) => a.id === id)?.name ?? "";
+  const [acc, setAcc] = useState("all");
+  const rows = useMemo(
+    () => withBalances(acc === "all" ? bcp : bcp.filter((r) => debitOf(r, accounts) === acc)).reverse(),
+    [bcp, acc, accounts],
+  );
   const active = cuotas.filter((c) => installmentActive(c, today));
+  const multi = debits.length > 1;
 
   if (tab === "resumen") {
     const ok = proj.min30.balance >= 0;
-    const payBreak = nextPay ? ioPaymentOn(nextPay.date, io, cuotas, profile) : null;
+    const nextPays = cards
+      .map((c) => {
+        const ev = proj.events.find((e) => e.concept.startsWith(`Pago ${c.name} (`));
+        return ev ? { c, date: ev.date, pay: cardPaymentOn(c, ev.date, accounts, io, cuotas, bcp, today) } : null;
+      })
+      .filter((x) => x !== null);
     return (
       <>
         <div className="bg-hero rounded-3xl border p-6">
-          <div className="text-sm text-muted-foreground">Saldo BCP actual</div>
+          <div className="text-sm text-muted-foreground">{multi ? "Liquidez total" : `Saldo ${debits[0]?.name ?? "BCP"} actual`}</div>
           <div className={cn("num font-display mt-1 text-4xl font-bold", bal < 0 && "text-expense")}>{money(bal)}</div>
+          {multi && (
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+              {debits.filter((a) => !a.archived).map((a) => (
+                <span key={a.id}>
+                  {a.name} <span className="num text-foreground">{money(currentBalance(bcp.filter((r) => debitOf(r, accounts) === a.id)))}</span>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <Card className={cn("flex items-start gap-3 p-4", ok ? "border-income/30 bg-income/10" : "border-expense/40 bg-expense/10")}>
           {ok ? <CheckCircle2 className="mt-0.5 size-5 text-income" /> : <AlertTriangle className="mt-0.5 size-5 text-expense" />}
@@ -176,12 +222,17 @@ function Views({ tab, profile, bcp, io, cuotas }: { tab: Tab; profile: Profile }
           </div>
         </Card>
         <div className="grid grid-cols-2 gap-3">
-          <Card className="p-4">
-            <div className="text-xs text-muted-foreground">Próximo pago iO</div>
-            <div className="num font-display mt-1 text-xl font-bold text-expense">{payBreak ? money(payBreak.total) : "—"}</div>
-            <div className="text-xs text-muted-foreground">{nextPay ? fmtDate(nextPay.date) : ""}</div>
-            {payBreak && <div className="mt-1 text-[11px] text-muted-foreground num">Gastos {money(payBreak.gastos)} · Cuotas {money(payBreak.cuotas)}</div>}
-          </Card>
+          {nextPays.map(({ c, date, pay }) => (
+            <Card key={c.id} className="p-4">
+              <div className="text-xs text-muted-foreground">Próximo pago {c.name}</div>
+              <div className="num font-display mt-1 text-xl font-bold text-expense">{money(pay.due)}</div>
+              <div className="text-xs text-muted-foreground">{fmtDate(date)}</div>
+              <div className="mt-1 text-[11px] text-muted-foreground num">
+                Gastos {money(pay.gastos)} · Cuotas {money(pay.cuotas)}
+                {pay.paid > 0 && ` · Pagado ${money(pay.paid)}`}
+              </div>
+            </Card>
+          ))}
           <Card className="p-4">
             <div className="text-xs text-muted-foreground">Mínimo en {profile.projection_months} meses</div>
             <div className={cn("num font-display mt-1 text-xl font-bold", proj.min.balance < 0 ? "text-expense" : "text-income")}>{money(proj.min.balance)}</div>
@@ -189,11 +240,14 @@ function Views({ tab, profile, bcp, io, cuotas }: { tab: Tab; profile: Profile }
           </Card>
         </div>
         <Card className="p-4">
-          <div className="mb-2 text-xs text-muted-foreground">Cuotas activas</div>
-          {active.length ? (
+          <div className="mb-2 text-xs text-muted-foreground">Cuotas y deudas activas</div>
+          {active.length || debts.length ? (
             <div className="flex flex-wrap gap-2">
               {active.map((c) => (
                 <span key={c.id} className="rounded-full bg-muted px-3 py-1 text-sm">{c.concept}</span>
+              ))}
+              {debts.map((d) => (
+                <span key={d.id} className="rounded-full bg-muted px-3 py-1 text-sm">{d.name}</span>
               ))}
             </div>
           ) : (
@@ -201,9 +255,9 @@ function Views({ tab, profile, bcp, io, cuotas }: { tab: Tab; profile: Profile }
           )}
         </Card>
         <Card>
-          <div className="px-4 pt-4 pb-1 text-xs text-muted-foreground">Últimos movimientos BCP</div>
+          <div className="px-4 pt-4 pb-1 text-xs text-muted-foreground">Últimos movimientos</div>
           {rows.slice(0, 6).map((r) => (
-            <Row key={r.id} title={r.concept} sub={fmtDate(r.date)} right={<Amount n={Number(r.amount)} />} />
+            <Row key={r.id} title={r.concept} sub={`${fmtDate(r.date)}${multi ? ` · ${nameOf(debitOf(r, accounts))}` : ""}`} right={<Amount n={Number(r.amount)} />} />
           ))}
         </Card>
       </>
@@ -212,25 +266,57 @@ function Views({ tab, profile, bcp, io, cuotas }: { tab: Tab; profile: Profile }
 
   if (tab === "liquidez")
     return (
-      <Card>
-        {rows.map((r) => (
-          <Row
-            key={r.id}
-            title={r.concept}
-            sub={`${fmtDate(r.date)} · Saldo: ${money(r.balance)}`}
-            right={<Amount n={Number(r.amount)} />}
-            onDelete={() => del("bcp_movements", r.id)}
-          />
-        ))}
-      </Card>
+      <>
+        <Chips value={acc} onChange={setAcc} options={[{ v: "all", l: "Todas" }, ...debits.map((a) => ({ v: a.id, l: a.name }))]} />
+        {acc !== "all" && (
+          <Card className="p-4">
+            <div className="text-xs text-muted-foreground">Saldo {nameOf(acc)}</div>
+            <div className="num font-display text-2xl font-bold">{money(rows[0]?.balance ?? 0)}</div>
+          </Card>
+        )}
+        <Card>
+          {rows.length === 0 && <div className="p-6 text-center text-sm text-muted-foreground">Sin movimientos</div>}
+          {rows.map((r) => (
+            <Row
+              key={r.id}
+              title={r.concept}
+              sub={`${fmtDate(r.date)}${multi && acc === "all" ? ` · ${nameOf(debitOf(r, accounts))}` : ""} · Saldo: ${money(r.balance)}`}
+              right={<Amount n={Number(r.amount)} />}
+              onDelete={() => del("bcp_movements", r.id, r.transfer_id)}
+            />
+          ))}
+        </Card>
+      </>
     );
 
-  if (tab === "io") return <IoView profile={profile} io={io} cuotas={cuotas} />;
+  if (tab === "io") return <CardsView cards={cards} accounts={accounts} io={io} cuotas={cuotas} bcp={bcp} />;
 
   if (tab === "cuotas")
     return (
       <div className="space-y-3">
-        {cuotas.length === 0 && <div className="py-10 text-center text-muted-foreground">Sin cuotas registradas</div>}
+        <div className="px-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Deudas externas</div>
+        {debts.length === 0 && <div className="py-4 text-center text-sm text-muted-foreground">Sin deudas externas · agrégalas con el +</div>}
+        {debts.map((d) => {
+          const left = debtRemaining(d, today);
+          const next = debtDates(d, today, addMonths(today, 13))[0];
+          return (
+            <Card key={d.id} className="p-4">
+              <div className="flex items-center gap-2">
+                <div className="font-display flex-1 font-semibold">{d.name}</div>
+                <span className="num font-semibold text-expense">{money(-d.monthly_amount)}</span>
+                <button onClick={() => del("debts", d.id)} aria-label="Eliminar" className="text-muted-foreground/60 hover:text-destructive">
+                  <Trash2 className="size-4" />
+                </button>
+              </div>
+              <div className="num mt-2 space-y-0.5 text-sm text-muted-foreground">
+                <div>Día de pago: {d.pay_day} · {left == null ? "sin fecha de fin" : `${left} pago(s) pendiente(s)`}</div>
+                <div>Próximo: {next ? fmtDate(next) : "—"}{d.pay_account_id ? ` · desde ${nameOf(d.pay_account_id)}` : ""}</div>
+              </div>
+            </Card>
+          );
+        })}
+        <div className="px-1 pt-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Cuotas en tarjeta</div>
+        {cuotas.length === 0 && <div className="py-4 text-center text-sm text-muted-foreground">Sin cuotas registradas</div>}
         {cuotas.map((c) => {
           const total = c.monthly_amount * c.num_installments;
           const on = installmentActive(c, today);
@@ -238,6 +324,7 @@ function Views({ tab, profile, bcp, io, cuotas }: { tab: Tab; profile: Profile }
             <Card key={c.id} className="p-4">
               <div className="flex items-center gap-2">
                 <div className="font-display flex-1 font-semibold">{c.concept}</div>
+                {cards.length > 1 && <span className="text-xs text-muted-foreground">{nameOf(cardOf(c, accounts))}</span>}
                 <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", on ? "bg-income/15 text-income" : "bg-muted text-muted-foreground")}>
                   {on ? "Activa" : "Terminada"}
                 </span>
@@ -283,15 +370,21 @@ function Views({ tab, profile, bcp, io, cuotas }: { tab: Tab; profile: Profile }
   );
 }
 
-function IoView({ profile, io, cuotas }: { profile: Profile } & Pick<ReturnType<typeof useFinanceData>, "io" | "cuotas">) {
-  const payDates = useMemo(() => [...new Set(io.map((e) => ioPayDate(e.date, profile)))].sort(), [io, profile]);
+function CardsView({ cards, accounts, io, cuotas, bcp }: { cards: Account[] } & Pick<Data, "accounts" | "io" | "cuotas" | "bcp">) {
+  const [cardId, setCardId] = useState(cards[0]?.id ?? "");
+  const card = cards.find((c) => c.id === cardId) ?? cards[0];
+  const mine = useMemo(() => (card ? io.filter((e) => cardOf(e, accounts) === card.id) : []), [io, card, accounts]);
+  const payDates = useMemo(() => (card ? [...new Set(mine.map((e) => ioPayDate(e.date, cycle(card))))].sort() : []), [mine, card]);
   const today = todayStr();
-  const [sel, setSel] = useState(() => payDates.find((d) => d >= today) ?? payDates[payDates.length - 1] ?? "");
-  const pay = sel ? ioPaymentOn(sel, io, cuotas, profile) : null;
-  const list = sel ? io.filter((e) => ioPayDate(e.date, profile) === sel) : io;
+  const [selRaw, setSel] = useState("");
+  const sel = payDates.includes(selRaw) ? selRaw : (payDates.find((d) => d >= today) ?? payDates[payDates.length - 1] ?? "");
+  if (!card) return <div className="py-10 text-center text-muted-foreground">No tienes tarjetas de crédito</div>;
+  const pay = sel ? cardPaymentOn(card, sel, accounts, io, cuotas, bcp, today) : null;
+  const list = sel ? mine.filter((e) => ioPayDate(e.date, cycle(card)) === sel) : mine;
 
   return (
     <>
+      <Chips value={card.id} onChange={(v) => { setCardId(v); setSel(""); }} options={cards.map((c) => ({ v: c.id, l: c.name }))} />
       <div className="flex gap-2 overflow-x-auto pb-1">
         {payDates.map((d) => (
           <button key={d} onClick={() => setSel(d)} className={cn("shrink-0 rounded-full border px-3 py-1.5 text-sm", sel === d ? "border-primary bg-primary/15 text-primary" : "text-muted-foreground")}>
@@ -301,17 +394,21 @@ function IoView({ profile, io, cuotas }: { profile: Profile } & Pick<ReturnType<
       </div>
       {pay && (
         <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Total a pagar el {fmtDate(sel)}</div>
-          <div className="num font-display text-3xl font-bold text-expense">{money(pay.total)}</div>
-          <div className="num text-sm text-muted-foreground">Gastos {money(pay.gastos)} · Cuotas {money(pay.cuotas)}</div>
+          <div className="text-xs text-muted-foreground">{card.name} · total a pagar el {fmtDate(sel)}</div>
+          <div className="num font-display text-3xl font-bold text-expense">{money(pay.due)}</div>
+          <div className="num text-sm text-muted-foreground">
+            Gastos {money(pay.gastos)} · Cuotas {money(pay.cuotas)}
+            {pay.paid > 0 && ` · Ya pagado ${money(pay.paid)}`}
+          </div>
         </Card>
       )}
       <Card>
+        {list.length === 0 && <div className="p-6 text-center text-sm text-muted-foreground">Sin gastos</div>}
         {list.map((e) => (
           <Row
             key={e.id}
             title={e.description}
-            sub={`${fmtDate(e.date)} · ${e.category} · paga el ${fmtDate(ioPayDate(e.date, profile))}`}
+            sub={`${fmtDate(e.date)} · ${e.category} · paga el ${fmtDate(ioPayDate(e.date, cycle(card)))}`}
             right={<Amount n={-Number(e.amount)} />}
             onDelete={() => del("io_expenses", e.id)}
           />

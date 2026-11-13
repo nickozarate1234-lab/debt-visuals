@@ -13,8 +13,27 @@ export type Profile = {
   bbva_amount: number;
   projection_months: number;
 };
-export type BcpMovement = { id: string; seq: number; date: string | null; concept: string; amount: number };
-export type IoExpense = { id: string; date: string; description: string; category: string; amount: number };
+export type BcpMovement = {
+  id: string;
+  seq: number;
+  date: string | null;
+  concept: string;
+  amount: number;
+  account_id?: string | null;
+  transfer_id?: string | null;
+  paid_card_id?: string | null;
+};
+export type IoExpense = { id: string; date: string; description: string; category: string; amount: number; account_id?: string | null };
+export type Account = { id: string; name: string; kind: "debito" | "credito"; legacy: string | null; cut_day: number; pay_day: number; archived: boolean };
+export type Debt = {
+  id: string;
+  name: string;
+  monthly_amount: number;
+  pay_day: number;
+  start_date: string;
+  num_payments: number | null;
+  pay_account_id: string | null;
+};
 export type Installment = {
   id: string;
   concept: string;
@@ -22,6 +41,7 @@ export type Installment = {
   num_installments: number;
   monthly_amount: number;
   first_date: string;
+  account_id?: string | null;
 };
 
 export const IO_CATEGORIES = ["Comida", "Transporte", "Suscripciones", "Entretenimiento", "Salud", "Otros"];
@@ -83,27 +103,70 @@ export const ioPaymentOn = (date: string, io: IoExpense[], cuotas: Installment[]
   return { gastos, cuotas: cuo, total: gastos + cuo };
 };
 
+/** Rows with no account belong to the original BCP (debit) / iO (credit) account. */
+export const legacyId = (accounts: Account[], legacy: "bcp" | "io") => accounts.find((a) => a.legacy === legacy)?.id ?? null;
+export const debitOf = (r: { account_id?: string | null }, accounts: Account[]) => r.account_id ?? legacyId(accounts, "bcp");
+export const cardOf = (r: { account_id?: string | null }, accounts: Account[]) => r.account_id ?? legacyId(accounts, "io");
+export const cycle = (a: Account) => ({ io_cut_day: a.cut_day, io_pay_day: a.pay_day });
+
+/** Monthly dates a debt is due within [from, to]. */
+export function debtDates(d: Debt, from: string, to: string) {
+  const out: string[] = [];
+  const s = parse(d.start_date);
+  for (let k = 0; k < 600; k++) {
+    if (d.num_payments != null && k >= d.num_payments) break;
+    const date = dayOf(s.getFullYear(), s.getMonth() + k, d.pay_day);
+    if (date < d.start_date) continue;
+    if (date > to) break;
+    if (date > from) out.push(date);
+  }
+  return out;
+}
+export const debtRemaining = (d: Debt, today = todayStr()) =>
+  d.num_payments == null ? null : debtDates(d, "0000-00-00", addMonths(d.start_date, d.num_payments + 1)).filter((x) => x > today).length;
+
+/** What a card will charge on payDate: its gastos + cuotas minus manual payments already made in that cycle. */
+export function cardPaymentOn(card: Account, payDate: string, accounts: Account[], io: IoExpense[], cuotas: Installment[], bcp: BcpMovement[], today = todayStr()) {
+  const mine = io.filter((e) => cardOf(e, accounts) === card.id);
+  const myCuotas = cuotas.filter((c) => cardOf(c, accounts) === card.id);
+  const base = ioPaymentOn(payDate, mine, myCuotas, cycle(card) as Profile);
+  const prev = addMonths(payDate, -1);
+  const paid = bcp
+    .filter((r) => r.paid_card_id === card.id && (r.date ?? today) > prev && (r.date ?? today) <= payDate)
+    .reduce((s, r) => s - Number(r.amount), 0);
+  return { ...base, paid, due: Math.max(0, base.total - paid) };
+}
+
 export type ProjEvent = { date: string; concept: string; amount: number; balance: number };
 
-export function project(p: Profile, bcp: BcpMovement[], io: IoExpense[], cuotas: Installment[], today = todayStr()) {
+export function project(
+  p: Profile,
+  bcp: BcpMovement[],
+  io: IoExpense[],
+  cuotas: Installment[],
+  today = todayStr(),
+  accounts: Account[] = [],
+  debts: Debt[] = [],
+) {
   const start = currentBalance(bcp);
   const raw: Omit<ProjEvent, "balance">[] = [];
   const t = parse(today);
+  const limit = addMonths(today, p.projection_months);
+  const cards = accounts.filter((a) => a.kind === "credito" && !a.archived);
   for (let k = 0; k <= p.projection_months; k++) {
     const y = t.getFullYear();
     const m = t.getMonth() + k;
     raw.push({ date: dayOf(y, m, p.mesada1_day), concept: "Mesada", amount: Number(p.mesada1_amount) });
     raw.push({ date: dayOf(y, m, p.mesada2_day), concept: "Mesada", amount: Number(p.mesada2_amount) });
-    if (Number(p.yape_amount) > 0)
-      raw.push({ date: dayOf(y, m, p.yape_day), concept: "Cuota Yape", amount: -Number(p.yape_amount) });
-    const payDate = dayOf(y, m, p.io_pay_day);
-    const pay = ioPaymentOn(payDate, io, cuotas, p);
-    if (pay.total !== 0) raw.push({ date: payDate, concept: "Pago iO (gastos + cuotas)", amount: -pay.total });
+    for (const c of cards) {
+      const payDate = dayOf(y, m, c.pay_day);
+      const pay = cardPaymentOn(c, payDate, accounts, io, cuotas, bcp, today);
+      if (pay.due !== 0) raw.push({ date: payDate, concept: `Pago ${c.name} (gastos + cuotas)`, amount: -pay.due });
+    }
   }
-  if (p.bbva_date && Number(p.bbva_amount) > 0)
-    raw.push({ date: p.bbva_date, concept: "Pago BBVA (único)", amount: -Number(p.bbva_amount) });
+  for (const d of debts)
+    for (const date of debtDates(d, today, limit)) raw.push({ date, concept: d.name, amount: -Number(d.monthly_amount) });
 
-  const limit = addMonths(today, p.projection_months);
   const events = raw
     .filter((e) => e.date > today && e.date <= limit && e.amount !== 0)
     .sort((a, b) => (a.date === b.date ? b.amount - a.amount : a.date < b.date ? -1 : 1));

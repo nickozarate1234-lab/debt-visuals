@@ -6,23 +6,18 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { Profile } from "@/lib/finance";
+import type { Account, Profile } from "@/lib/finance";
+import { AccountsManager } from "./AccountsManager";
 
 const FIELDS: { k: keyof Profile; l: string; type?: string }[] = [
   { k: "mesada1_day", l: "Mesada 1 · día" },
   { k: "mesada1_amount", l: "Mesada 1 · monto" },
   { k: "mesada2_day", l: "Mesada 2 · día" },
   { k: "mesada2_amount", l: "Mesada 2 · monto" },
-  { k: "io_cut_day", l: "iO · día de corte" },
-  { k: "io_pay_day", l: "iO · día de pago" },
-  { k: "yape_day", l: "Crédito Yape · día" },
-  { k: "yape_amount", l: "Crédito Yape · cuota (0 = terminó)" },
-  { k: "bbva_date", l: "BBVA · fecha único pago", type: "date" },
-  { k: "bbva_amount", l: "BBVA · monto" },
   { k: "projection_months", l: "Meses a proyectar" },
 ];
 
-export function SettingsSheet({ open, onOpenChange, profile, onSaved }: { open: boolean; onOpenChange: (o: boolean) => void; profile: Profile; onSaved: () => void }) {
+export function SettingsSheet({ open, onOpenChange, profile, accounts, onSaved }: { open: boolean; onOpenChange: (o: boolean) => void; profile: Profile; accounts: Account[]; onSaved: () => void }) {
   const [form, setForm] = useState<Record<string, string>>({});
   useEffect(() => {
     setForm(Object.fromEntries(FIELDS.map((f) => [f.k, String(profile[f.k] ?? "")])));
@@ -58,6 +53,8 @@ export function SettingsSheet({ open, onOpenChange, profile, onSaved }: { open: 
           ))}
           <Button onClick={save} className="col-span-2 mt-2 rounded-xl">Guardar cambios</Button>
         </div>
+
+        <AccountsManager userId={profile.user_id} accounts={accounts} />
 
         <div className="mx-4 mt-8 space-y-3 rounded-2xl border bg-card p-4">
           <h3 className="font-display font-semibold">Atajo de iPhone</h3>

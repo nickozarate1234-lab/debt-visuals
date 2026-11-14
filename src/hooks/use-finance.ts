@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import type { Account, BcpMovement, Debt, Installment, IoExpense, Profile } from "@/lib/finance";
+import type { Account, BcpMovement, Debt, Installment, IoExpense, Profile, Subscription } from "@/lib/finance";
 
 export function useSession() {
   const [session, setSession] = useState<Session | null>(null);
@@ -24,16 +24,18 @@ export function useFinanceData(enabled: boolean) {
   const [cuotas, setCuotas] = useState<Installment[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
+  const [subs, setSubs] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const [p, b, i, c, a, d] = await Promise.all([
+    const [p, b, i, c, a, d, sb] = await Promise.all([
       supabase.from("profiles").select("*").maybeSingle(),
       supabase.from("bcp_movements").select("id, seq, date, concept, amount, account_id, transfer_id, paid_card_id").order("seq"),
       supabase.from("io_expenses").select("id, date, description, category, amount, account_id").order("date", { ascending: false }),
       supabase.from("installments").select("*").order("first_date"),
       supabase.from("accounts").select("*").order("created_at"),
       supabase.from("debts").select("*").order("created_at"),
+      supabase.from("subscriptions").select("*").order("charge_day"),
     ]);
     let accs = (a.data ?? []) as Account[];
     const prof = p.data as Profile | null;
@@ -53,6 +55,7 @@ export function useFinanceData(enabled: boolean) {
     setBcp((b.data ?? []) as BcpMovement[]);
     setIo((i.data ?? []) as IoExpense[]);
     setCuotas((c.data ?? []) as Installment[]);
+    setSubs((sb.data ?? []) as Subscription[]);
     setLoading(false);
   }, []);
 
@@ -66,6 +69,7 @@ export function useFinanceData(enabled: boolean) {
       .on("postgres_changes", { event: "*", schema: "public", table: "installments" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "accounts" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "debts" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "subscriptions" }, load)
       .subscribe();
     const onFocus = () => load();
     window.addEventListener("focus", onFocus);
@@ -75,5 +79,5 @@ export function useFinanceData(enabled: boolean) {
     };
   }, [enabled, load]);
 
-  return { profile, bcp, io, cuotas, accounts, debts, loading, reload: load };
+  return { profile, bcp, io, cuotas, accounts, debts, subs, loading, reload: load };
 }

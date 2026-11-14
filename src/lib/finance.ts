@@ -147,6 +147,7 @@ export function project(
   today = todayStr(),
   accounts: Account[] = [],
   debts: Debt[] = [],
+  subs: Subscription[] = [],
 ) {
   const start = currentBalance(bcp);
   const raw: Omit<ProjEvent, "balance">[] = [];
@@ -167,6 +168,11 @@ export function project(
   for (const d of debts)
     for (const date of debtDates(d, today, limit)) raw.push({ date, concept: d.name, amount: -Number(d.monthly_amount) });
 
+  for (const s of subs) {
+    const acc = accounts.find((a) => a.id === s.pay_account_id);
+    if (acc?.kind === "credito") continue; // charged on the card; shows up in the card payment once registered
+    for (const date of subDates(s, today, limit)) raw.push({ date, concept: `Suscripción ${s.name}`, amount: -Number(s.amount) });
+  }
   const events = raw
     .filter((e) => e.date > today && e.date <= limit && e.amount !== 0)
     .sort((a, b) => (a.date === b.date ? b.amount - a.amount : a.date < b.date ? -1 : 1));
@@ -186,3 +192,34 @@ export function project(
     min30: minOf(out.filter((e) => e.date <= in30)),
   };
 }
+
+export type Subscription = {
+  id: string;
+  name: string;
+  amount: number;
+  cycle: "mensual" | "anual";
+  charge_day: number;
+  charge_month: number | null;
+  category: string;
+  pay_account_id: string | null;
+  active: boolean;
+};
+
+/** Charge dates of a subscription strictly after `from` and up to `to`. */
+export function subDates(s: Subscription, from: string, to: string) {
+  const out: string[] = [];
+  if (!s.active) return out;
+  const f = parse(from);
+  for (let k = 0; k <= 30; k++) {
+    const m = f.getMonth() + k;
+    if (s.cycle === "anual" && ((m % 12) + 12) % 12 !== (s.charge_month ?? 1) - 1) continue;
+    const date = dayOf(f.getFullYear(), m, s.charge_day);
+    if (date > to) break;
+    if (date > from) out.push(date);
+  }
+  return out;
+}
+export const subMonthly = (s: Subscription) => (s.active ? (s.cycle === "anual" ? Number(s.amount) / 12 : Number(s.amount)) : 0);
+export const nextCharge = (s: Subscription, today = todayStr()) =>
+  subDates(s, ymd(new Date(parse(today).getTime() - 86400000)), addMonths(today, 13))[0] ?? null;
+export const daysUntil = (date: string, today = todayStr()) => Math.round((parse(date).getTime() - parse(today).getTime()) / 86400000);

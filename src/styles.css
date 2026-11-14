@@ -105,6 +105,10 @@
   --sidebar-border: oklch(1 0 0 / 8%);
   --sidebar-ring: oklch(0.86 0.17 145);
   --gradient-hero: radial-gradient(120% 140% at 0% 0%, oklch(0.42 0.12 150 / 55%), transparent 55%), linear-gradient(160deg, oklch(0.25 0.03 200), oklch(0.2 0.015 250));
+  --ambient: radial-gradient(60% 45% at 10% 0%, oklch(0.55 0.14 160 / 28%), transparent 70%), radial-gradient(50% 40% at 100% 35%, oklch(0.7 0.12 70 / 14%), transparent 70%), radial-gradient(60% 50% at 30% 100%, oklch(0.5 0.1 220 / 18%), transparent 70%);
+  --glass-bg: oklch(0.22 0.015 250 / 55%);
+  --glass-edge: oklch(1 0 0 / 10%);
+  --glass-sheen: linear-gradient(160deg, oklch(1 0 0 / 7%), transparent 40%);
   --shadow-glow: 0 10px 40px -10px oklch(0.86 0.17 145 / 45%);
 }
 
@@ -115,6 +119,9 @@
 
   body {
     background-color: var(--color-background);
+    background-image: var(--ambient);
+    background-attachment: fixed;
+    min-height: 100vh;
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-tap-highlight-color: transparent;
@@ -124,4 +131,29 @@
 
 @utility bg-hero {
   background: var(--gradient-hero);
+}
+
+@utility glass {
+  background: var(--glass-sheen), var(--glass-bg);
+  backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid var(--glass-edge);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 8%), 0 20px 40px -24px oklch(0 0 0 / 60%);
+}
+@utility glass-glow {
+  background: radial-gradient(90% 120% at 0% 0%, oklch(0.6 0.15 155 / 30%), transparent 60%), var(--glass-sheen), var(--glass-bg);
+}
+@utility glass-inset {
+  background: oklch(1 0 0 / 4%);
+  border: 1px solid oklch(1 0 0 / 7%);
+}
+@utility glass-bar {
+  background: oklch(0.2 0.015 250 / 60%);
+  backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid var(--glass-edge);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 10%), 0 16px 40px -16px oklch(0 0 0 / 70%);
+}
+@utility glass-pill {
+  background: oklch(1 0 0 / 8%);
+  border: 1px solid oklch(1 0 0 / 10%);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 12%);
 }

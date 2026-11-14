@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, CreditCard, LineChart, Plus, Receipt, Settings, Trash2, Wallet, Home } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CreditCard, LineChart, Plus, Receipt, Settings, Trash2, Wallet, Home, Repeat } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useFinanceData, useSession } from "@/hooks/use-finance";
 import { AuthScreen } from "@/components/finanzas/AuthScreen";
 import { AddDialog, type AddKind } from "@/components/finanzas/AddDialog";
 import { VoiceButton } from "@/components/finanzas/VoiceButton";
 import { VoucherButton } from "@/components/finanzas/VoucherButton";
+import { SubscriptionsView } from "@/components/finanzas/SubscriptionsView";
 import { SettingsSheet } from "@/components/finanzas/SettingsSheet";
 import {
   cardOf,
@@ -47,12 +48,13 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Tab = "resumen" | "liquidez" | "io" | "cuotas" | "proyeccion";
+type Tab = "resumen" | "liquidez" | "io" | "cuotas" | "proyeccion" | "subs";
 const TABS: { id: Tab; l: string; icon: typeof Home }[] = [
   { id: "resumen", l: "Resumen", icon: Home },
   { id: "liquidez", l: "Liquidez", icon: Wallet },
   { id: "io", l: "Tarjetas", icon: CreditCard },
   { id: "cuotas", l: "Deudas", icon: Receipt },
+  { id: "subs", l: "Suscrip.", icon: Repeat },
   { id: "proyeccion", l: "Proyección", icon: LineChart },
 ];
 
@@ -68,7 +70,7 @@ const Amount = ({ n, className }: { n: number; className?: string }) => (
 );
 
 const Card = ({ children, className }: { children: React.ReactNode; className?: string }) => (
-  <div className={cn("rounded-2xl border bg-card", className)}>{children}</div>
+  <div className={cn("glass rounded-3xl", className)}>{children}</div>
 );
 
 function Row({ title, sub, right, onDelete }: { title: string; sub: string; right: React.ReactNode; onDelete?: () => void }) {
@@ -97,7 +99,7 @@ async function del(table: "bcp_movements" | "io_expenses" | "installments" | "de
 }
 
 function App({ userId }: { userId: string }) {
-  const { profile, bcp, io, cuotas, accounts, debts, loading, reload } = useFinanceData(true);
+  const { profile, bcp, io, cuotas, accounts, debts, subs, loading, reload } = useFinanceData(true);
   const [tab, setTab] = useState<Tab>("resumen");
   const [addOpen, setAddOpen] = useState(false);
   const [addKind, setAddKind] = useState<AddKind>("io");
@@ -110,7 +112,7 @@ function App({ userId }: { userId: string }) {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-xl flex-col">
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b bg-background/85 px-5 py-4 backdrop-blur">
+      <header className="glass-bar sticky top-3 z-20 mx-3 mt-3 flex items-center justify-between rounded-full px-5 py-3">
         <h1 className="font-display text-xl font-bold">Mis Finanzas</h1>
         <div className="flex items-center gap-2">
           <VoucherButton userId={userId} />
@@ -124,27 +126,27 @@ function App({ userId }: { userId: string }) {
         {loading || !profile ? (
           <div className="space-y-3">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-24 animate-pulse rounded-2xl bg-card" />
+              <div key={i} className="glass h-24 animate-pulse rounded-3xl" />
             ))}
           </div>
         ) : (
-          <Views tab={tab} profile={profile} bcp={bcp} io={io} cuotas={cuotas} accounts={accounts} debts={debts} />
+          <Views tab={tab} profile={profile} bcp={bcp} io={io} cuotas={cuotas} accounts={accounts} debts={debts} subs={subs} userId={userId} />
         )}
       </main>
 
       <button
         onClick={openAdd}
         aria-label="Agregar"
-        className="fixed right-5 bottom-24 z-30 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-glow transition active:scale-95 sm:right-[calc(50%-17rem)]"
+        className="fixed right-5 bottom-28 z-30 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-glow transition active:scale-95 sm:right-[calc(50%-17rem)]"
       >
         <Plus className="size-7" />
       </button>
 
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-        <div className="mx-auto grid max-w-xl grid-cols-5">
+      <nav className="fixed inset-x-0 bottom-0 z-20 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+        <div className="glass-bar mx-auto grid max-w-xl grid-cols-6 rounded-full px-1">
           {TABS.map((t) => (
-            <button key={t.id} onClick={() => setTab(t.id)} className={cn("flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium", tab === t.id ? "text-primary" : "text-muted-foreground")}>
-              <t.icon className="size-5" />
+            <button key={t.id} onClick={() => setTab(t.id)} className={cn("m-1 flex flex-col items-center gap-0.5 rounded-full py-2 text-[10px] font-medium transition", tab === t.id ? "glass-pill text-primary" : "text-muted-foreground")}>
+              <t.icon className="size-[18px]" strokeWidth={1.6} />
               {t.l}
             </button>
           ))}
@@ -158,7 +160,7 @@ function App({ userId }: { userId: string }) {
   );
 }
 
-type Data = Pick<ReturnType<typeof useFinanceData>, "bcp" | "io" | "cuotas" | "accounts" | "debts">;
+type Data = Pick<ReturnType<typeof useFinanceData>, "bcp" | "io" | "cuotas" | "accounts" | "debts" | "subs">;
 
 function Chips({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { v: string; l: string }[] }) {
   if (options.length < 2) return null;
@@ -173,9 +175,9 @@ function Chips({ value, onChange, options }: { value: string; onChange: (v: stri
   );
 }
 
-function Views({ tab, profile, bcp, io, cuotas, accounts, debts }: { tab: Tab; profile: Profile } & Data) {
+function Views({ tab, profile, bcp, io, cuotas, accounts, debts, subs, userId }: { tab: Tab; profile: Profile; userId: string } & Data) {
   const today = todayStr();
-  const proj = useMemo(() => project(profile, bcp, io, cuotas, today, accounts, debts), [profile, bcp, io, cuotas, today, accounts, debts]);
+  const proj = useMemo(() => project(profile, bcp, io, cuotas, today, accounts, debts, subs), [profile, bcp, io, cuotas, today, accounts, debts, subs]);
   const bal = currentBalance(bcp);
   const debits = accounts.filter((a) => a.kind === "debito");
   const cards = accounts.filter((a) => a.kind === "credito" && !a.archived);
@@ -187,6 +189,8 @@ function Views({ tab, profile, bcp, io, cuotas, accounts, debts }: { tab: Tab; p
   );
   const active = cuotas.filter((c) => installmentActive(c, today));
   const multi = debits.length > 1;
+
+  if (tab === "subs") return <SubscriptionsView subs={subs} accounts={accounts} userId={userId} />;
 
   if (tab === "resumen") {
     const ok = proj.min30.balance >= 0;

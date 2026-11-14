@@ -251,6 +251,48 @@ export type Database = {
         }
         Relationships: []
       }
+      subscriptions: {
+        Row: {
+          active: boolean
+          amount: number
+          category: string
+          charge_day: number
+          charge_month: number | null
+          created_at: string
+          cycle: string
+          id: string
+          name: string
+          pay_account_id: string | null
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          amount: number
+          category?: string
+          charge_day?: number
+          charge_month?: number | null
+          created_at?: string
+          cycle?: string
+          id?: string
+          name: string
+          pay_account_id?: string | null
+          user_id?: string
+        }
+        Update: {
+          active?: boolean
+          amount?: number
+          category?: string
+          charge_day?: number
+          charge_month?: number | null
+          created_at?: string
+          cycle?: string
+          id?: string
+          name?: string
+          pay_account_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -54,7 +54,10 @@ export function AccountsManager({ userId, accounts }: { userId: string; accounts
   const [name, setName] = useState("");
   const [kind, setKind] = useState<"debito" | "credito">("debito");
   const add = async () => {
-    if (!name.trim()) return toast.error("Ponle un nombre");
+    if (!name.trim()) {
+      toast.error("Ponle un nombre");
+      return;
+    }
     const { error } = await supabase.from("accounts").insert({ user_id: userId, name: name.trim().slice(0, 40), kind });
     if (error) toast.error(error.message);
     else {

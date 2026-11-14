@@ -90,8 +90,9 @@ function Row({ title, sub, right, onDelete }: { title: string; sub: string; righ
 
 async function del(table: "bcp_movements" | "io_expenses" | "installments" | "debts", id: string, transferId?: string | null) {
   if (!confirm("¿Eliminar este registro?")) return;
-  const q = supabase.from(table).delete();
-  const { error } = transferId ? await q.eq("transfer_id", transferId) : await q.eq("id", id);
+  const { error } = transferId
+    ? await supabase.from("bcp_movements").delete().eq("transfer_id", transferId)
+    : await supabase.from(table).delete().eq("id", id);
   if (error) toast.error(error.message);
 }
 

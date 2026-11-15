@@ -111,7 +111,10 @@ function SubDialog({ open, onOpenChange, accounts, userId }: { open: boolean; on
 
   const save = async () => {
     const n = Number(amount.replace(",", "."));
-    if (!name.trim() || !(n > 0)) return toast.error("Pon nombre y monto");
+    if (!name.trim() || !(n > 0)) {
+      toast.error("Pon nombre y monto");
+      return;
+    }
     setSaving(true);
     const { error } = await supabase.from("subscriptions").insert({
       user_id: userId,
@@ -123,7 +126,10 @@ function SubDialog({ open, onOpenChange, accounts, userId }: { open: boolean; on
       pay_account_id: acc || null,
     });
     setSaving(false);
-    if (error) return toast.error(error.message);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success(`${name} agregada`);
     setName("");
     setAmount("");

@@ -29,25 +29,44 @@ const SCHEMA = {
   propertyOrdering: ["transcript", "cuenta", "movimiento", "monto", "descripcion", "categoria", "fecha"],
 };
 
+// Tried in order; the next one is used when a model is overloaded or unavailable.
+// Override with GEMINI_MODEL (comma-separated list allowed).
+const DEFAULT_MODELS = "gemini-3.5-flash-lite,gemini-3.1-flash-lite";
+
 let client: GoogleGenAI | null = null;
 function ai() {
   const apiKey = process.env["GEMINI_API_KEY"];
   if (!apiKey) throw new Error("Falta GEMINI_API_KEY en las variables de entorno del servidor");
-  return (client ??= new GoogleGenAI({ apiKey }));
+  return (client ??= new GoogleGenAI({ apiKey, httpOptions: { timeout: 30_000 } }));
 }
+
+const retryable = (e: unknown) => /\b(429|500|503|504)\b|UNAVAILABLE|DEADLINE_EXCEEDED|RESOURCE_EXHAUSTED|NOT_FOUND|\b404\b/i.test(String((e as Error)?.message ?? e));
 
 /** Sends one file (audio or image) plus instructions to Gemini and returns the parsed movement. */
 export async function extractMovement(opts: { instructions: string; prompt: string; mimeType: string; base64: string }): Promise<Movement> {
-  const res = await ai().models.generateContent({
-    model: process.env["GEMINI_MODEL"] || "gemini-2.5-flash",
-    contents: [{ role: "user", parts: [{ text: opts.prompt }, { inlineData: { mimeType: opts.mimeType, data: opts.base64 } }] }],
-    config: {
-      systemInstruction: opts.instructions,
-      responseMimeType: "application/json",
-      responseJsonSchema: SCHEMA,
-      temperature: 0,
-    },
-  });
+  const models = (process.env["GEMINI_MODEL"] || DEFAULT_MODELS).split(",").map((m) => m.trim()).filter(Boolean);
+  let res: Awaited<ReturnType<GoogleGenAI["models"]["generateContent"]>> | undefined;
+  let lastErr: unknown;
+  for (const model of models) {
+    try {
+      res = await ai().models.generateContent({
+        model,
+        contents: [{ role: "user", parts: [{ text: opts.prompt }, { inlineData: { mimeType: opts.mimeType, data: opts.base64 } }] }],
+        config: {
+          systemInstruction: opts.instructions,
+          responseMimeType: "application/json",
+          responseJsonSchema: SCHEMA,
+          temperature: 0,
+        },
+      });
+      break;
+    } catch (e) {
+      lastErr = e;
+      if (!retryable(e)) throw e;
+      console.warn(`Gemini ${model} no disponible, probando el siguiente`, String((e as Error)?.message ?? e).slice(0, 160));
+    }
+  }
+  if (!res) throw lastErr;
   const p = JSON.parse(res.text ?? "{}") as Omit<Movement, "fecha"> & { fecha?: string | null };
   const fecha = p.fecha && /^\d{4}-\d{2}-\d{2}$/.test(p.fecha) ? p.fecha : null;
   return { ...p, transcript: (p.transcript ?? "").trim(), monto: Number(p.monto) || 0, fecha };

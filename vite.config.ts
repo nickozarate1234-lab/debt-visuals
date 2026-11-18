@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import tsConfigPaths from "vite-tsconfig-paths";
@@ -8,7 +8,10 @@ import { nitro } from "nitro/vite";
 
 // Nitro picks the deploy target automatically (Vercel when building on Vercel,
 // a plain Node server locally). Override with NITRO_PRESET if needed.
-export default defineConfig(({ command }) => ({
+export default defineConfig(({ command, mode }) => {
+  // Local dev: expose .env / .env.local to server functions (process.env), like Vercel does in production.
+  if (command === "serve") for (const [k, v] of Object.entries(loadEnv(mode, process.cwd(), ""))) process.env[k] ??= v;
+  return {
   plugins: [
     tailwindcss(),
     tsConfigPaths({ projects: ["./tsconfig.json"] }),
@@ -27,4 +30,5 @@ export default defineConfig(({ command }) => ({
     dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core"],
   },
   server: { port: 8080 },
-}));
+  };
+});

@@ -8,3 +8,4 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+- Demo mode (`/?demo=true`) renders the app from in-memory data in src/lib/demo-data.ts and never reads or writes the database — keeps real data private for marketing/AI recording.

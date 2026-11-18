@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { buildDemoData } from "@/lib/demo-data";
 import type { Account, BcpMovement, Debt, Installment, IoExpense, Profile, Subscription } from "@/lib/finance";
 
 export function useSession() {
@@ -17,7 +18,7 @@ export function useSession() {
   return { session, ready };
 }
 
-export function useFinanceData(enabled: boolean) {
+export function useFinanceData(enabled: boolean, demo = false) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [bcp, setBcp] = useState<BcpMovement[]>([]);
   const [io, setIo] = useState<IoExpense[]>([]);
@@ -60,6 +61,12 @@ export function useFinanceData(enabled: boolean) {
   }, []);
 
   useEffect(() => {
+    if (demo) {
+      const d = buildDemoData();
+      setProfile(d.profile); setBcp(d.bcp); setIo(d.io); setCuotas(d.cuotas); setAccounts(d.accounts); setDebts(d.debts); setSubs(d.subs);
+      setLoading(false);
+      return;
+    }
     if (!enabled) return;
     supabase.rpc("init_my_account").then(load);
     const ch = supabase
@@ -77,7 +84,7 @@ export function useFinanceData(enabled: boolean) {
       supabase.removeChannel(ch);
       window.removeEventListener("focus", onFocus);
     };
-  }, [enabled, load]);
+  }, [enabled, demo, load]);
 
-  return { profile, bcp, io, cuotas, accounts, debts, subs, loading, reload: load };
+  return { profile, bcp, io, cuotas, accounts, debts, subs, loading, reload: demo ? async () => {} : load };
 }

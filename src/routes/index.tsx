@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { DEMO_USER_ID } from "@/lib/demo-data";
 import { toast } from "sonner";
 import { AlertTriangle, CheckCircle2, CreditCard, LineChart, Plus, Receipt, Settings, Trash2, Wallet, Home, Repeat } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,6 +61,11 @@ const TABS: { id: Tab; l: string; icon: typeof Home }[] = [
 
 function Index() {
   const { session, ready } = useSession();
+  const [demo, setDemo] = useState(false);
+  useEffect(() => {
+    setDemo(new URLSearchParams(window.location.search).get("demo") === "true");
+  }, []);
+  if (demo) return <App userId={DEMO_USER_ID} demo />;
   if (!ready) return <div className="min-h-screen" />;
   if (!session) return <AuthScreen />;
   return <App userId={session.user.id} />;
@@ -98,8 +104,8 @@ async function del(table: "bcp_movements" | "io_expenses" | "installments" | "de
   if (error) toast.error(error.message);
 }
 
-function App({ userId }: { userId: string }) {
-  const { profile, bcp, io, cuotas, accounts, debts, subs, loading, reload } = useFinanceData(true);
+function App({ userId, demo = false }: { userId: string; demo?: boolean }) {
+  const { profile, bcp, io, cuotas, accounts, debts, subs, loading, reload } = useFinanceData(!demo, demo);
   const [tab, setTab] = useState<Tab>("resumen");
   const [addOpen, setAddOpen] = useState(false);
   const [addKind, setAddKind] = useState<AddKind>("io");

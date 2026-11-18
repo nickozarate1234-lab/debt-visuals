@@ -24,7 +24,7 @@ export type BcpMovement = {
   paid_card_id?: string | null;
 };
 export type IoExpense = { id: string; date: string; description: string; category: string; amount: number; account_id?: string | null };
-export type Account = { id: string; name: string; kind: "debito" | "credito"; legacy: string | null; cut_day: number; pay_day: number; archived: boolean };
+export type Account = { id: string; name: string; kind: "debito" | "credito"; legacy: string | null; cut_day: number; pay_day: number; archived: boolean; credit_limit?: number | null };
 export type Debt = {
   id: string;
   name: string;
@@ -42,6 +42,8 @@ export type Installment = {
   monthly_amount: number;
   first_date: string;
   account_id?: string | null;
+  /** When the purchase was made (set when a card expense is converted to cuotas). */
+  purchase_date?: string | null;
 };
 
 export const IO_CATEGORIES = ["Comida", "Transporte", "Suscripciones", "Entretenimiento", "Salud", "Otros"];
@@ -105,6 +107,39 @@ export const installmentDueDates = (i: Installment, payDay?: number) => {
 export const installmentLast = (i: Installment, payDay?: number) => installmentDueDates(i, payDay).at(-1) ?? i.first_date;
 export const installmentActive = (i: Installment, today = todayStr(), payDay?: number) => today <= installmentLast(i, payDay);
 
+/**
+ * Effective interest of a cuotas plan (French system, as Peruvian banks quote it):
+ * the monthly rate TEM that makes n payments of `monthly` worth `original` today, and TEA = (1+TEM)^12 − 1.
+ * Returns zeros when there is no interest, null when the numbers don't make sense.
+ */
+export function cuotaRate(original: number, monthly: number, n: number) {
+  if (!(original > 0) || !(monthly > 0) || !(n >= 1)) return null;
+  const total = monthly * n;
+  if (total <= original + 0.005) return { tem: 0, tea: 0, total, interest: Math.max(0, total - original) };
+  const pv = (i: number) => (monthly * (1 - Math.pow(1 + i, -n))) / i;
+  let lo = 1e-9, hi = 1;
+  for (let k = 0; k < 200; k++) {
+    const mid = (lo + hi) / 2;
+    if (pv(mid) > original) lo = mid;
+    else hi = mid;
+  }
+  const tem = (lo + hi) / 2;
+  return { tem, tea: Math.pow(1 + tem, 12) - 1, total, interest: total - original };
+}
+
+/** Where a cuotas plan stands today: cuotas paid (pay date already passed), remaining, and principal still using the credit line. */
+export function installmentStatus(i: Installment, payDay: number | undefined, today = todayStr()) {
+  const due = installmentDueDates(i, payDay);
+  const paid = due.filter((d) => d < today).length;
+  const remaining = due.length - paid;
+  const rate = cuotaRate(Number(i.original_amount), Number(i.monthly_amount), due.length);
+  const m = Number(i.monthly_amount);
+  // Each cuota paid frees its capital part of the line: what's left is the present value of the remaining cuotas.
+  const principal =
+    remaining === 0 ? 0 : rate && rate.tem > 0 ? (m * (1 - Math.pow(1 + rate.tem, -remaining))) / rate.tem : (Number(i.original_amount) * remaining) / Math.max(1, due.length);
+  return { due, paid, remaining, next: due[paid] ?? null, remainingAmount: remaining * m, principal: Math.min(principal, Number(i.original_amount)), rate };
+}
+
 export const withBalances = (rows: BcpMovement[]) => {
   const sorted = [...rows].sort((a, b) => a.seq - b.seq);
   let bal = 0;
@@ -152,6 +187,24 @@ export function cardPaymentOn(card: Account, payDate: string, accounts: Account[
     .filter((r) => r.paid_card_id === card.id && (r.date ?? today) > prev && (r.date ?? today) <= payDate)
     .reduce((s, r) => s - Number(r.amount), 0);
   return { ...base, paid, due: Math.max(0, base.total - paid) };
+}
+
+/**
+ * Credit line used on a card today: purchases not yet paid (statements due today or later, minus payments already
+ * made toward them) plus the capital still owed on cuotas. Each cuota paid releases its capital part.
+ */
+export function cardCreditUsed(card: Account, accounts: Account[], io: IoExpense[], cuotas: Installment[], bcp: BcpMovement[], today = todayStr()) {
+  const mine = io.filter((e) => cardOf(e, accounts) === card.id);
+  const payDates = [...new Set(mine.map((e) => ioPayDate(e.date, cycle(card) as Profile)))].filter((d) => d >= today);
+  const gastos = payDates.reduce((s, d) => {
+    const p = cardPaymentOn(card, d, accounts, io, [], bcp, today);
+    return s + Math.max(0, p.gastos - p.paid);
+  }, 0);
+  const plans = cuotas.filter((c) => cardOf(c, accounts) === card.id).map((c) => installmentStatus(c, card.pay_day, today));
+  const enCuotas = plans.reduce((s, p) => s + p.principal, 0);
+  const limit = card.credit_limit != null && Number(card.credit_limit) > 0 ? Number(card.credit_limit) : null;
+  const used = gastos + enCuotas;
+  return { limit, gastos, cuotas: enCuotas, used, available: limit == null ? null : limit - used };
 }
 
 export type ProjEvent = { date: string; concept: string; amount: number; balance: number };

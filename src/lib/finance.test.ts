@@ -105,3 +105,57 @@ describe("cards with their own cycle", () => {
     ]);
   });
 });
+
+describe("cuotaRate (French system, like the bank quote)", () => {
+  it("finds the monthly rate that matches the quoted cuota", async () => {
+    const { cuotaRate } = await import("./finance");
+    const r = cuotaRate(244.7, 90.03, 3)!;
+    const pv = (90.03 * (1 - Math.pow(1 + r.tem, -3))) / r.tem;
+    expect(pv).toBeCloseTo(244.7, 2);
+    expect(r.interest).toBeCloseTo(25.39, 2);
+    expect(r.tea).toBeGreaterThan(r.tem * 12); // compounding
+  });
+  it("zero interest when cuotas add up to the purchase", async () => {
+    const { cuotaRate } = await import("./finance");
+    expect(cuotaRate(300, 100, 3)).toMatchObject({ tem: 0, tea: 0, interest: 0 });
+  });
+  it("rejects nonsense", async () => {
+    const { cuotaRate } = await import("./finance");
+    expect(cuotaRate(0, 100, 3)).toBeNull();
+    expect(cuotaRate(100, 0, 3)).toBeNull();
+  });
+});
+
+describe("installmentStatus and the credit line", () => {
+  const momo: Installment = { id: "m", concept: "Momo", original_amount: 261, num_installments: 3, monthly_amount: 95.7, first_date: "2026-12-12", account_id: "io" };
+  it("nothing paid before the first pay date: the whole purchase uses the line", async () => {
+    const { installmentStatus } = await import("./finance");
+    const s = installmentStatus(momo, 12, "2026-11-18");
+    expect([s.paid, s.remaining, s.next]).toEqual([0, 3, "2026-12-12"]);
+    expect(s.principal).toBeCloseTo(261, 1);
+  });
+  it("each cuota paid releases its capital part", async () => {
+    const { installmentStatus } = await import("./finance");
+    const one = installmentStatus(momo, 12, "2026-12-13");
+    const two = installmentStatus(momo, 12, "2027-01-13");
+    const done = installmentStatus(momo, 12, "2027-02-13");
+    expect([one.paid, two.paid, done.paid]).toEqual([1, 2, 3]);
+    expect(one.principal).toBeLessThan(261);
+    expect(two.principal).toBeLessThan(one.principal);
+    expect(two.principal).toBeLessThan(95.7); // last cuota = its capital + that month's interest
+    expect(done.principal).toBe(0);
+  });
+  it("card credit used = unpaid purchases + capital left in cuotas", async () => {
+    const { cardCreditUsed } = await import("./finance");
+    const io: Account = { id: "io", name: "iO", kind: "credito", legacy: "io", cut_day: 25, pay_day: 12, archived: false, credit_limit: 5000 };
+    const accounts: Account[] = [io];
+    const spend = [
+      { id: "e1", date: "2026-11-10", description: "Wong", category: "Comida", amount: 100, account_id: "io" }, // pays 2026-12-12: unpaid
+      { id: "e2", date: "2026-10-01", description: "Old", category: "Comida", amount: 50, account_id: "io" }, // paid on 2026-11-12
+    ];
+    const r = cardCreditUsed(io, accounts, spend, [momo], [], "2026-11-18");
+    expect(r.gastos).toBe(100);
+    expect(r.cuotas).toBeCloseTo(261, 1);
+    expect(r.available).toBeCloseTo(5000 - 361, 1);
+  });
+});

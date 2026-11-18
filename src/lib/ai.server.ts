@@ -6,7 +6,8 @@ export const CATS = ["Comida", "Transporte", "Suscripciones", "Entretenimiento",
 
 export type Movement = {
   transcript: string;
-  cuenta: "bcp" | "io";
+  /** Account id (one of the ids passed in `accountIds`). */
+  cuenta: string;
   movimiento: "egreso" | "ingreso";
   monto: number;
   descripcion: string;
@@ -14,11 +15,11 @@ export type Movement = {
   fecha: string | null;
 };
 
-const SCHEMA = {
+const schema = (accountIds: string[]) => ({
   type: "object",
   properties: {
     transcript: { type: "string" },
-    cuenta: { type: "string", enum: ["bcp", "io"] },
+    cuenta: { type: "string", enum: accountIds },
     movimiento: { type: "string", enum: ["egreso", "ingreso"] },
     monto: { type: "number" },
     descripcion: { type: "string" },
@@ -27,7 +28,7 @@ const SCHEMA = {
   },
   required: ["transcript", "cuenta", "movimiento", "monto", "descripcion", "categoria", "fecha"],
   propertyOrdering: ["transcript", "cuenta", "movimiento", "monto", "descripcion", "categoria", "fecha"],
-};
+});
 
 // Tried in order; the next one is used when a model is overloaded or unavailable.
 // Override with GEMINI_MODEL (comma-separated list allowed).
@@ -43,7 +44,7 @@ function ai() {
 const retryable = (e: unknown) => /\b(429|500|503|504)\b|UNAVAILABLE|DEADLINE_EXCEEDED|RESOURCE_EXHAUSTED|NOT_FOUND|\b404\b/i.test(String((e as Error)?.message ?? e));
 
 /** Sends one file (audio or image) plus instructions to Gemini and returns the parsed movement. */
-export async function extractMovement(opts: { instructions: string; prompt: string; mimeType: string; base64: string }): Promise<Movement> {
+export async function extractMovement(opts: { instructions: string; prompt: string; mimeType: string; base64: string; accountIds: string[] }): Promise<Movement> {
   const models = (process.env["GEMINI_MODEL"] || DEFAULT_MODELS).split(",").map((m) => m.trim()).filter(Boolean);
   let res: Awaited<ReturnType<GoogleGenAI["models"]["generateContent"]>> | undefined;
   let lastErr: unknown;
@@ -55,7 +56,7 @@ export async function extractMovement(opts: { instructions: string; prompt: stri
         config: {
           systemInstruction: opts.instructions,
           responseMimeType: "application/json",
-          responseJsonSchema: SCHEMA,
+          responseJsonSchema: schema(opts.accountIds),
           temperature: 0,
         },
       });

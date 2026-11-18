@@ -84,8 +84,26 @@ export const ioPayDate = (date: string, p: Pick<Profile, "io_cut_day" | "io_pay_
   return dayOf(d.getFullYear(), d.getMonth() + months, p.io_pay_day);
 };
 
-export const installmentLast = (i: Installment) => addMonths(i.first_date, i.num_installments - 1);
-export const installmentActive = (i: Installment, today = todayStr()) => today <= installmentLast(i);
+/** The card's pay date on or after `date` (a card that pays on day `payDay` of each month). */
+export const nextPayDate = (date: string, payDay: number) => {
+  const d = parse(date);
+  const same = dayOf(d.getFullYear(), d.getMonth(), payDay);
+  return same >= date ? same : dayOf(d.getFullYear(), d.getMonth() + 1, payDay);
+};
+
+/**
+ * Pay dates on which each monthly installment is charged. `first_date` is when the first
+ * cuota is due; any day works: it is billed on the card's next pay date, then monthly.
+ * Without `payDay` the schedule follows `first_date` month by month.
+ */
+export const installmentDueDates = (i: Installment, payDay?: number) => {
+  const n = Math.max(0, Math.floor(Number(i.num_installments) || 0));
+  if (payDay == null) return Array.from({ length: n }, (_, k) => addMonths(i.first_date, k));
+  const first = parse(nextPayDate(i.first_date, payDay));
+  return Array.from({ length: n }, (_, k) => dayOf(first.getFullYear(), first.getMonth() + k, payDay));
+};
+export const installmentLast = (i: Installment, payDay?: number) => installmentDueDates(i, payDay).at(-1) ?? i.first_date;
+export const installmentActive = (i: Installment, today = todayStr(), payDay?: number) => today <= installmentLast(i, payDay);
 
 export const withBalances = (rows: BcpMovement[]) => {
   const sorted = [...rows].sort((a, b) => a.seq - b.seq);
@@ -96,9 +114,8 @@ export const currentBalance = (rows: BcpMovement[]) => rows.reduce((s, r) => s +
 
 export const ioPaymentOn = (date: string, io: IoExpense[], cuotas: Installment[], p: Profile) => {
   const gastos = io.filter((e) => ioPayDate(e.date, p) === date).reduce((s, e) => s + Number(e.amount), 0);
-  const day = parse(date).getDate();
   const cuo = cuotas
-    .filter((c) => c.first_date <= date && installmentLast(c) >= date && parse(c.first_date).getDate() === day)
+    .filter((c) => installmentDueDates(c, p.io_pay_day).includes(date))
     .reduce((s, c) => s + Number(c.monthly_amount), 0);
   return { gastos, cuotas: cuo, total: gastos + cuo };
 };

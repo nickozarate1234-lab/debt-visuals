@@ -24,6 +24,7 @@ import {
   currentBalance,
   fmtDate,
   installmentActive,
+  installmentDueDates,
   installmentLast,
   ioPayDate,
   ioPaymentOn,
@@ -110,6 +111,7 @@ function App({ userId, demo = false }: { userId: string; demo?: boolean }) {
   const [addOpen, setAddOpen] = useState(false);
   const [addKind, setAddKind] = useState<AddKind>("io");
   const [settings, setSettings] = useState(false);
+  const activeAccounts = useMemo(() => accounts.filter((a) => !a.archived), [accounts]);
 
   const openAdd = () => {
     setAddKind(tab === "liquidez" ? "bcp" : tab === "cuotas" ? "deuda" : "io");
@@ -121,7 +123,7 @@ function App({ userId, demo = false }: { userId: string; demo?: boolean }) {
       <header className="glass-bar sticky top-3 z-20 mx-3 mt-3 flex items-center justify-between rounded-full px-5 py-3">
         <h1 className="font-display text-xl font-bold">Mis Finanzas</h1>
         <div className="flex items-center gap-2">
-          <VoucherButton userId={userId} />
+          <VoucherButton userId={userId} accounts={activeAccounts} />
           <button onClick={() => setSettings(true)} aria-label="Info fija" className="rounded-full p-2 hover:bg-muted">
             <Settings className="size-5" />
           </button>
@@ -160,7 +162,7 @@ function App({ userId, demo = false }: { userId: string; demo?: boolean }) {
       </nav>
 
       <AddDialog open={addOpen} onOpenChange={setAddOpen} kind={addKind} setKind={setAddKind} userId={userId} accounts={accounts} />
-      <VoiceButton userId={userId} />
+      <VoiceButton userId={userId} accounts={activeAccounts} />
       {profile && <SettingsSheet open={settings} onOpenChange={setSettings} profile={profile} accounts={accounts} onSaved={reload} />}
     </div>
   );
@@ -193,7 +195,8 @@ function Views({ tab, profile, bcp, io, cuotas, accounts, debts, subs, userId }:
     () => withBalances(acc === "all" ? bcp : bcp.filter((r) => debitOf(r, accounts) === acc)).reverse(),
     [bcp, acc, accounts],
   );
-  const active = cuotas.filter((c) => installmentActive(c, today));
+  const payDayOf = (c: { account_id?: string | null }) => accounts.find((a) => a.id === cardOf(c, accounts))?.pay_day;
+  const active = cuotas.filter((c) => installmentActive(c, today, payDayOf(c)));
   const multi = debits.length > 1;
 
   if (tab === "subs") return <SubscriptionsView subs={subs} accounts={accounts} userId={userId} />;
@@ -330,7 +333,8 @@ function Views({ tab, profile, bcp, io, cuotas, accounts, debts, subs, userId }:
         {cuotas.length === 0 && <div className="py-4 text-center text-sm text-muted-foreground">Sin cuotas registradas</div>}
         {cuotas.map((c) => {
           const total = c.monthly_amount * c.num_installments;
-          const on = installmentActive(c, today);
+          const due = installmentDueDates(c, payDayOf(c));
+          const on = installmentActive(c, today, payDayOf(c));
           return (
             <Card key={c.id} className="p-4">
               <div className="flex items-center gap-2">
@@ -345,7 +349,7 @@ function Views({ tab, profile, bcp, io, cuotas, accounts, debts, subs, userId }:
               </div>
               <div className="num mt-2 space-y-0.5 text-sm text-muted-foreground">
                 <div>Original: {money(c.original_amount)} · {c.num_installments} cuotas de {money(c.monthly_amount)}</div>
-                <div>1ra cuota: {fmtDate(c.first_date)} · Última: {fmtDate(installmentLast(c))}</div>
+                <div>1ra cuota: {fmtDate(due[0] ?? c.first_date)} · Última: {fmtDate(installmentLast(c, payDayOf(c)))}</div>
                 <div>Total a pagar: {money(total)} · Interés: {money(total - c.original_amount)}</div>
               </div>
             </Card>

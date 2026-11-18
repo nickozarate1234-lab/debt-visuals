@@ -52,16 +52,16 @@ export function buildDemoData() {
     id: `d-m${i}`, seq: i + 1, date: shift(d), concept, amount, account_id, transfer_id: null, paid_card_id: null,
   }));
   const ex: [number, string, string, number, string][] = [
-    [-1, "Starbucks Larcomar", "Comida", -18.5, "d-io"],
-    [-2, "Wong Miraflores", "Comida", -142.3, "d-io"],
-    [-3, "Uber", "Transporte", -16.9, "d-io"],
-    [-5, "SmartFit", "Salud", -119, "d-io"],
-    [-7, "Cineplanet", "Entretenimiento", -48, "d-bbva"],
-    [-8, "Central Restaurante", "Comida", -210, "d-bbva"],
-    [-11, "Tambo", "Comida", -12.4, "d-io"],
-    [-13, "Inkafarma", "Salud", -36.8, "d-io"],
-    [-15, "Rappi sushi", "Comida", -64, "d-io"],
-    [-18, "Cabify aeropuerto", "Transporte", -42, "d-io"],
+    [-1, "Starbucks Larcomar", "Comida", 18.5, "d-io"],
+    [-2, "Wong Miraflores", "Comida", 142.3, "d-io"],
+    [-3, "Uber", "Transporte", 16.9, "d-io"],
+    [-5, "SmartFit", "Salud", 119, "d-io"],
+    [-7, "Cineplanet", "Entretenimiento", 48, "d-bbva"],
+    [-8, "Central Restaurante", "Comida", 210, "d-bbva"],
+    [-11, "Tambo", "Comida", 12.4, "d-io"],
+    [-13, "Inkafarma", "Salud", 36.8, "d-io"],
+    [-15, "Rappi sushi", "Comida", 64, "d-io"],
+    [-18, "Cabify aeropuerto", "Transporte", 42, "d-io"],
   ];
   const io: IoExpense[] = ex.map(([d, description, category, amount, account_id], i) => ({
     id: `d-e${i}`, date: shift(d), description, category, amount, account_id,

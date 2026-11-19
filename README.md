@@ -2,11 +2,11 @@
 
 PWA de finanzas personales: cuentas de débito, tarjetas de crédito (cortes, pagos, cuotas y línea disponible), deudas, suscripciones y una proyección del saldo a 6 meses. Los movimientos se registran a mano, por voz, escaneando un voucher o desde un atajo de iPhone.
 
-**En producción:** https://misfinanzasperu.pages.dev · **Demo sin login:** https://misfinanzasperu.pages.dev/?demo=true
+**En producción:** https://misfinanzasperu.nickozarate1234.workers.dev · **Demo sin login:** https://misfinanzasperu.nickozarate1234.workers.dev/?demo=true
 
 ## Stack
 
-- TanStack Start (React 19 + Vite + Nitro), desplegado en Cloudflare Pages
+- TanStack Start (React 19 + Vite + Nitro), desplegado en Cloudflare Workers
 - Supabase: Postgres con RLS por usuario y Auth (correo; Google opcional)
 - Gemini para leer audios y comprobantes (`src/lib/ai.server.ts`)
 
@@ -19,7 +19,7 @@ npm run dev                  # http://localhost:8080
 npm test
 ```
 
-Variables (ver `.env.example`): `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY` y, solo en local, `SUPABASE_DB_URL` para migraciones. Las mismas (menos `SUPABASE_DB_URL`) van en Cloudflare → tu proyecto de Pages → Settings → Variables and Secrets, más `APP_URL` y `MP_WEBHOOK_SECRET`.
+Variables (ver `.env.example`): `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY` y, solo en local, `SUPABASE_DB_URL` para migraciones. Las mismas (menos `SUPABASE_DB_URL`) van en Cloudflare → Worker misfinanzasperu → Settings → Variables and Secrets (runtime; las VITE_ van en Build), más `APP_URL` y `MP_WEBHOOK_SECRET`.
 
 ## Base de datos
 

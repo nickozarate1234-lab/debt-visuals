@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
+// Google sign-in shows only once the Google provider is configured in Supabase (set VITE_GOOGLE_AUTH=true).
+const GOOGLE_AUTH = import.meta.env["VITE_GOOGLE_AUTH"] === "true";
 
 export function AuthScreen() {
   const [mode, setMode] = useState<"in" | "up">("in");
@@ -37,8 +39,8 @@ export function AuthScreen() {
   };
 
   const google = async () => {
-    const r = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
-    if (r.error) toast.error("No se pudo entrar con Google. Intenta de nuevo.");
+    const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } });
+    if (error) toast.error("No se pudo entrar con Google. Intenta de nuevo.");
   };
 
   return (
@@ -49,6 +51,7 @@ export function AuthScreen() {
           <h1 className="font-display text-3xl font-bold">Mis Finanzas</h1>
           <p className="text-muted-foreground">{mode === "in" ? "Entra a tu cuenta" : "Crea tu cuenta"}</p>
         </div>
+        {GOOGLE_AUTH && (<>
         <button
           type="button"
           onClick={google}
@@ -58,6 +61,7 @@ export function AuthScreen() {
           Continuar con Google
         </button>
         <div className="flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />o con correo<span className="h-px flex-1 bg-border" /></div>
+        </>)}
         <Input type="email" placeholder="Correo" value={email} onChange={(e) => setEmail(e.target.value)} className="h-12" required />
         <Input type="password" placeholder="Contraseña" value={pass} onChange={(e) => setPass(e.target.value)} className="h-12" minLength={6} required />
         <Button disabled={busy} className="h-12 w-full rounded-xl font-bold">

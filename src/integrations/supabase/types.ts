@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           archived: boolean
           created_at: string
+          credit_limit: number | null
           cut_day: number
           id: string
           kind: string
@@ -29,6 +30,7 @@ export type Database = {
         Insert: {
           archived?: boolean
           created_at?: string
+          credit_limit?: number | null
           cut_day?: number
           id?: string
           kind?: string
@@ -40,6 +42,7 @@ export type Database = {
         Update: {
           archived?: boolean
           created_at?: string
+          credit_limit?: number | null
           cut_day?: number
           id?: string
           kind?: string
@@ -138,6 +141,7 @@ export type Database = {
           monthly_amount: number
           num_installments: number
           original_amount: number
+          purchase_date: string | null
           user_id: string | null
         }
         Insert: {
@@ -149,6 +153,7 @@ export type Database = {
           monthly_amount: number
           num_installments: number
           original_amount: number
+          purchase_date?: string | null
           user_id?: string | null
         }
         Update: {
@@ -160,6 +165,7 @@ export type Database = {
           monthly_amount?: number
           num_installments?: number
           original_amount?: number
+          purchase_date?: string | null
           user_id?: string | null
         }
         Relationships: []
@@ -298,6 +304,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      expense_to_installments: {
+        Args: { p_expense_id: string; p_first_date: string; p_monthly: number; p_num: number; p_original: number }
+        Returns: string
+      }
       init_my_account: { Args: never; Returns: undefined }
     }
     Enums: {

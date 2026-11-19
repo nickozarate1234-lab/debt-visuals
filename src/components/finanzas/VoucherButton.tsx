@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Loader2, ScanLine } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { todayStr } from "@/lib/finance";
+import { todayStr, type Account } from "@/lib/finance";
 import type { VoiceParse } from "@/lib/voice.functions";
 import { parseVoucher } from "@/lib/voucher.functions";
 import { ConfirmDraft } from "./ConfirmDraft";
@@ -28,7 +28,8 @@ async function compress(file: File): Promise<string> {
   }
 }
 
-export function VoucherButton({ userId }: { userId: string }) {
+export function VoucherButton({ userId, accounts }: { userId: string; accounts: Account[] }) {
+  const refs = accounts.map(({ id, name, kind, legacy }) => ({ id, name, kind, legacy }));
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<VoiceParse | null>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -39,7 +40,7 @@ export function VoucherButton({ userId }: { userId: string }) {
     setBusy(true);
     try {
       const image = await compress(f);
-      const res = await parse({ data: { image, today: todayStr() } });
+      const res = await parse({ data: { image, today: todayStr(), accounts: refs } });
       if ("error" in res) toast.error(res.error);
       else setDraft(res);
     } catch {
@@ -65,7 +66,7 @@ export function VoucherButton({ userId }: { userId: string }) {
           Leyendo comprobante…
         </div>
       )}
-      <ConfirmDraft draft={draft} setDraft={setDraft} userId={userId} source="voucher" successMsg="Voucher registrado" />
+      <ConfirmDraft draft={draft} setDraft={setDraft} userId={userId} accounts={accounts} source="voucher" successMsg="Voucher registrado" />
     </>
   );
 }

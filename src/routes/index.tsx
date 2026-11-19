@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { DEMO_USER_ID } from "@/lib/demo-data";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, CreditCard, LineChart, Plus, Receipt, Settings, Trash2, Wallet, Home, Repeat } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CreditCard, LineChart, Plus, Receipt, Settings, Split, Trash2, Wallet, Home, Repeat } from "lucide-react";
+import { CuotasDialog } from "@/components/finanzas/CuotasDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useFinanceData, useSession } from "@/hooks/use-finance";
 import { AuthScreen } from "@/components/finanzas/AuthScreen";
@@ -12,8 +13,10 @@ import { VoucherButton } from "@/components/finanzas/VoucherButton";
 import { SubscriptionsView } from "@/components/finanzas/SubscriptionsView";
 import { SettingsSheet } from "@/components/finanzas/SettingsSheet";
 import {
+  cardCreditUsed,
   cardOf,
   cardPaymentOn,
+  installmentStatus,
   cycle,
   debitOf,
   debtDates,
@@ -79,7 +82,7 @@ const Card = ({ children, className }: { children: React.ReactNode; className?: 
   <div className={cn("glass rounded-3xl", className)}>{children}</div>
 );
 
-function Row({ title, sub, right, onDelete }: { title: string; sub: string; right: React.ReactNode; onDelete?: () => void }) {
+function Row({ title, sub, right, onDelete, onSplit }: { title: string; sub: string; right: React.ReactNode; onDelete?: () => void; onSplit?: () => void }) {
   return (
     <div className="flex items-center gap-3 border-b px-4 py-3 last:border-b-0">
       <div className="min-w-0 flex-1">
@@ -87,6 +90,11 @@ function Row({ title, sub, right, onDelete }: { title: string; sub: string; righ
         <div className="truncate text-xs text-muted-foreground">{sub}</div>
       </div>
       <div className="text-right">{right}</div>
+      {onSplit && (
+        <button onClick={onSplit} aria-label="Pasar a cuotas" title="Pasar a cuotas" className="text-muted-foreground/70 hover:text-primary">
+          <Split className="size-4" />
+        </button>
+      )}
       {onDelete && (
         <button onClick={onDelete} aria-label="Eliminar" className="text-muted-foreground/60 hover:text-destructive">
           <Trash2 className="size-4" />
@@ -110,6 +118,7 @@ function App({ userId, demo = false }: { userId: string; demo?: boolean }) {
   const [addOpen, setAddOpen] = useState(false);
   const [addKind, setAddKind] = useState<AddKind>("io");
   const [settings, setSettings] = useState(false);
+  const activeAccounts = useMemo(() => accounts.filter((a) => !a.archived), [accounts]);
 
   const openAdd = () => {
     setAddKind(tab === "liquidez" ? "bcp" : tab === "cuotas" ? "deuda" : "io");
@@ -121,7 +130,7 @@ function App({ userId, demo = false }: { userId: string; demo?: boolean }) {
       <header className="glass-bar sticky top-3 z-20 mx-3 mt-3 flex items-center justify-between rounded-full px-5 py-3">
         <h1 className="font-display text-xl font-bold">Mis Finanzas</h1>
         <div className="flex items-center gap-2">
-          <VoucherButton userId={userId} />
+          <VoucherButton userId={userId} accounts={activeAccounts} />
           <button onClick={() => setSettings(true)} aria-label="Info fija" className="rounded-full p-2 hover:bg-muted">
             <Settings className="size-5" />
           </button>
@@ -160,7 +169,7 @@ function App({ userId, demo = false }: { userId: string; demo?: boolean }) {
       </nav>
 
       <AddDialog open={addOpen} onOpenChange={setAddOpen} kind={addKind} setKind={setAddKind} userId={userId} accounts={accounts} />
-      <VoiceButton userId={userId} />
+      <VoiceButton userId={userId} accounts={activeAccounts} />
       {profile && <SettingsSheet open={settings} onOpenChange={setSettings} profile={profile} accounts={accounts} onSaved={reload} />}
     </div>
   );
@@ -193,7 +202,8 @@ function Views({ tab, profile, bcp, io, cuotas, accounts, debts, subs, userId }:
     () => withBalances(acc === "all" ? bcp : bcp.filter((r) => debitOf(r, accounts) === acc)).reverse(),
     [bcp, acc, accounts],
   );
-  const active = cuotas.filter((c) => installmentActive(c, today));
+  const payDayOf = (c: { account_id?: string | null }) => accounts.find((a) => a.id === cardOf(c, accounts))?.pay_day;
+  const active = cuotas.filter((c) => installmentActive(c, today, payDayOf(c)));
   const multi = debits.length > 1;
 
   if (tab === "subs") return <SubscriptionsView subs={subs} accounts={accounts} userId={userId} />;
@@ -330,7 +340,9 @@ function Views({ tab, profile, bcp, io, cuotas, accounts, debts, subs, userId }:
         {cuotas.length === 0 && <div className="py-4 text-center text-sm text-muted-foreground">Sin cuotas registradas</div>}
         {cuotas.map((c) => {
           const total = c.monthly_amount * c.num_installments;
-          const on = installmentActive(c, today);
+          const st = installmentStatus(c, payDayOf(c), today);
+          const due = st.due;
+          const on = st.remaining > 0;
           return (
             <Card key={c.id} className="p-4">
               <div className="flex items-center gap-2">
@@ -345,8 +357,19 @@ function Views({ tab, profile, bcp, io, cuotas, accounts, debts, subs, userId }:
               </div>
               <div className="num mt-2 space-y-0.5 text-sm text-muted-foreground">
                 <div>Original: {money(c.original_amount)} · {c.num_installments} cuotas de {money(c.monthly_amount)}</div>
-                <div>1ra cuota: {fmtDate(c.first_date)} · Última: {fmtDate(installmentLast(c))}</div>
-                <div>Total a pagar: {money(total)} · Interés: {money(total - c.original_amount)}</div>
+                <div>1ra cuota: {fmtDate(due[0] ?? c.first_date)} · Última: {fmtDate(installmentLast(c, payDayOf(c)))}</div>
+                <div>Total a pagar: {money(total)} · Interés: {money(total - c.original_amount)}{st.rate && st.rate.tem > 0 ? ` · TEA ≈ ${(st.rate.tea * 100).toFixed(1)}%` : ""}</div>
+                {c.purchase_date && <div>Compra: {fmtDate(c.purchase_date)}</div>}
+                {on && (
+                  <div className="pt-1 text-foreground/90">
+                    {st.paid} de {st.due.length} pagadas · próxima {fmtDate(st.next)} · faltan {money(st.remainingAmount)} · usa {money(st.principal)} de tu línea
+                  </div>
+                )}
+                {on && (
+                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-primary" style={{ width: `${(st.paid / Math.max(1, st.due.length)) * 100}%` }} />
+                  </div>
+                )}
               </div>
             </Card>
           );
@@ -388,14 +411,17 @@ function CardsView({ cards, accounts, io, cuotas, bcp }: { cards: Account[] } & 
   const payDates = useMemo(() => (card ? [...new Set(mine.map((e) => ioPayDate(e.date, cycle(card))))].sort() : []), [mine, card]);
   const today = todayStr();
   const [selRaw, setSel] = useState("");
+  const [toSplit, setToSplit] = useState<(typeof io)[number] | null>(null);
   const sel = payDates.includes(selRaw) ? selRaw : (payDates.find((d) => d >= today) ?? payDates[payDates.length - 1] ?? "");
   if (!card) return <div className="py-10 text-center text-muted-foreground">No tienes tarjetas de crédito</div>;
   const pay = sel ? cardPaymentOn(card, sel, accounts, io, cuotas, bcp, today) : null;
   const list = sel ? mine.filter((e) => ioPayDate(e.date, cycle(card)) === sel) : mine;
+  const line = cardCreditUsed(card, accounts, io, cuotas, bcp, today);
 
   return (
     <>
       <Chips value={card.id} onChange={(v) => { setCardId(v); setSel(""); }} options={cards.map((c) => ({ v: c.id, l: c.name }))} />
+      <CreditLine name={card.name} line={line} />
       <div className="flex gap-2 overflow-x-auto pb-1">
         {payDates.map((d) => (
           <button key={d} onClick={() => setSel(d)} className={cn("shrink-0 rounded-full border px-3 py-1.5 text-sm", sel === d ? "border-primary bg-primary/15 text-primary" : "text-muted-foreground")}>
@@ -421,10 +447,39 @@ function CardsView({ cards, accounts, io, cuotas, bcp }: { cards: Account[] } & 
             title={e.description}
             sub={`${fmtDate(e.date)} · ${e.category} · paga el ${fmtDate(ioPayDate(e.date, cycle(card)))}`}
             right={<Amount n={-Number(e.amount)} />}
+            onSplit={() => setToSplit(e)}
             onDelete={() => del("io_expenses", e.id)}
           />
         ))}
       </Card>
+      <CuotasDialog expense={toSplit} card={card} onClose={() => setToSplit(null)} />
     </>
+  );
+}
+
+function CreditLine({ name, line }: { name: string; line: ReturnType<typeof cardCreditUsed> }) {
+  if (line.limit == null)
+    return (
+      <Card className="p-4 text-sm text-muted-foreground">
+        Crédito usado en {name}: <span className="num font-semibold text-foreground">{money(line.used)}</span>
+        <div className="mt-1 text-xs">Agrega la línea de crédito de {name} en Ajustes (⚙) para ver cuánto tienes disponible.</div>
+      </Card>
+    );
+  const usedPct = Math.min(100, Math.max(0, (line.used / line.limit) * 100));
+  const over = (line.available ?? 0) < 0;
+  return (
+    <Card className="p-4">
+      <div className="flex items-baseline justify-between">
+        <div className="text-xs text-muted-foreground">Línea disponible · {name}</div>
+        <div className="num text-xs text-muted-foreground">de {money(line.limit)}</div>
+      </div>
+      <div className={cn("num font-display text-2xl font-bold", over ? "text-expense" : "text-income")}>{money(line.available ?? 0)}</div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+        <div className={cn("h-full rounded-full", usedPct > 85 ? "bg-expense" : usedPct > 60 ? "bg-warning" : "bg-primary")} style={{ width: `${usedPct}%` }} />
+      </div>
+      <div className="num mt-2 text-xs text-muted-foreground">
+        Usado {money(line.used)} · Consumos por pagar {money(line.gastos)} · En cuotas {money(line.cuotas)}
+      </div>
+    </Card>
   );
 }

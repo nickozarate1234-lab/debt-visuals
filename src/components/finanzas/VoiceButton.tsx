@@ -2,14 +2,15 @@ import { useRef, useState } from "react";
 import { Loader2, Mic, Square } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { todayStr } from "@/lib/finance";
+import { todayStr, type Account } from "@/lib/finance";
 import { ConfirmDraft } from "./ConfirmDraft";
 import { parseVoice, type VoiceParse } from "@/lib/voice.functions";
 import { cn } from "@/lib/utils";
 
 type State = "idle" | "rec" | "busy";
 
-export function VoiceButton({ userId }: { userId: string }) {
+export function VoiceButton({ userId, accounts }: { userId: string; accounts: Account[] }) {
+  const refs = accounts.map(({ id, name, kind, legacy }) => ({ id, name, kind, legacy }));
   const [state, setState] = useState<State>("idle");
   const [draft, setDraft] = useState<VoiceParse | null>(null);
   const rec = useRef<MediaRecorder | null>(null);
@@ -32,7 +33,7 @@ export function VoiceButton({ userId }: { userId: string }) {
         let bin = "";
         for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
         try {
-          const res = await parse({ data: { audio: btoa(bin), mime: r.mimeType, today: todayStr() } });
+          const res = await parse({ data: { audio: btoa(bin), mime: r.mimeType, today: todayStr(), accounts: refs } });
           if ("error" in res) toast.error(res.error);
           else setDraft(res);
         } catch {
@@ -68,7 +69,7 @@ export function VoiceButton({ userId }: { userId: string }) {
           Escuchando… toca ■ al terminar
         </div>
       )}
-      <ConfirmDraft draft={draft} setDraft={setDraft} userId={userId} source="voz" successMsg="Registrado por voz" />
+      <ConfirmDraft draft={draft} setDraft={setDraft} userId={userId} accounts={accounts} source="voz" successMsg="Registrado por voz" />
     </>
   );
 }

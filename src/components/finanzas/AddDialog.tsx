@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { IO_CATEGORIES, todayStr, type Account } from "@/lib/finance";
+import { IO_CATEGORIES, fmtDate, nextPayDate, todayStr, type Account } from "@/lib/finance";
 import { cn } from "@/lib/utils";
 
 export type AddKind = "io" | "bcp" | "traspaso" | "cuota" | "deuda";
@@ -53,6 +53,7 @@ export function AddDialog({
   const [payDay, setPayDay] = useState("15");
   const dId = debitId || debits[0]?.id || "";
   const cId = cardId || cards[0]?.id || "";
+  const card = cards.find((c) => c.id === cId);
   const destOptions = accounts.filter((a) => !a.archived && a.id !== dId);
   const tId = toId && toId !== dId ? toId : destOptions[0]?.id || "";
   const [amount, setAmount] = useState("");
@@ -217,8 +218,13 @@ export function AddDialog({
             </div>
           )}
           <div className="space-y-1.5">
-            <Label>{kind === "cuota" ? "Fecha 1ra cuota" : kind === "deuda" ? "Desde (1er pago)" : "Fecha"}</Label>
+            <Label>{kind === "cuota" ? "Fecha de la 1ra cuota" : kind === "deuda" ? "Desde (1er pago)" : "Fecha"}</Label>
             <Input type="date" value={date} disabled={noDate} onChange={(e) => setDate(e.target.value)} className="h-11" />
+            {kind === "cuota" && card && date && (
+              <p className="text-xs text-muted-foreground">
+                Se cobra en el pago de {card.name} del <span className="num text-foreground">{fmtDate(nextPayDate(date, card.pay_day))}</span> y luego cada mes.
+              </p>
+            )}
             {kind === "bcp" && (
               <label className="flex items-center gap-2 text-sm text-muted-foreground">
                 <input type="checkbox" checked={noDate} onChange={(e) => setNoDate(e.target.checked)} /> Sin fecha

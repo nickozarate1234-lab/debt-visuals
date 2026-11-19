@@ -11,11 +11,18 @@ function AccountRow({ a }: { a: Account }) {
   const [name, setName] = useState(a.name);
   const [cut, setCut] = useState(String(a.cut_day));
   const [pay, setPay] = useState(String(a.pay_day));
-  const dirty = name !== a.name || cut !== String(a.cut_day) || pay !== String(a.pay_day);
+  const limit0 = a.credit_limit != null ? String(Number(a.credit_limit)) : "";
+  const [limit, setLimit] = useState(limit0);
+  const dirty = name !== a.name || cut !== String(a.cut_day) || pay !== String(a.pay_day) || limit !== limit0;
   const save = async () => {
     const { error } = await supabase
       .from("accounts")
-      .update({ name: name.trim() || a.name, cut_day: Number(cut) || a.cut_day, pay_day: Number(pay) || a.pay_day })
+      .update({
+        name: name.trim() || a.name,
+        cut_day: Number(cut) || a.cut_day,
+        pay_day: Number(pay) || a.pay_day,
+        ...(a.kind === "credito" ? { credit_limit: Number(limit) > 0 ? Number(limit) : null } : {}),
+      })
       .eq("id", a.id);
     if (error) toast.error(error.message);
     else toast.success("Guardado");
@@ -36,6 +43,7 @@ function AccountRow({ a }: { a: Account }) {
         <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
           <label className="space-y-1">Día de corte<Input type="number" value={cut} onChange={(e) => setCut(e.target.value)} className="h-9" /></label>
           <label className="space-y-1">Día de pago<Input type="number" value={pay} onChange={(e) => setPay(e.target.value)} className="h-9" /></label>
+          <label className="col-span-2 space-y-1">Línea de crédito (S/)<Input type="number" inputMode="decimal" step="0.01" value={limit} onChange={(e) => setLimit(e.target.value)} placeholder="Ej. 5000" className="h-9" /></label>
         </div>
       )}
       <div className="flex gap-2">
@@ -69,7 +77,7 @@ export function AccountsManager({ userId, accounts }: { userId: string; accounts
     <div className="mx-4 mt-8 space-y-3 rounded-2xl border bg-card p-4">
       <h3 className="font-display font-semibold">Mis cuentas y tarjetas</h3>
       {accounts.map((a) => (
-        <AccountRow key={a.id + a.name + a.cut_day + a.pay_day} a={a} />
+        <AccountRow key={a.id + a.name + a.cut_day + a.pay_day + (a.credit_limit ?? "")} a={a} />
       ))}
       <div className="space-y-2 border-t pt-3">
         <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">

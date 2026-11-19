@@ -41,7 +41,7 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
         ...(!SUPABASE_URL ? ['SUPABASE_URL'] : []),
         ...(!SUPABASE_PUBLISHABLE_KEY ? ['SUPABASE_PUBLISHABLE_KEY'] : []),
       ];
-      const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. Set them in .env.local (local) or in the Vercel project settings.`;
+      const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. Set them in .env.local (local) or in the Cloudflare Pages project settings.`;
       console.error(`[Supabase] ${message}`);
       throw new Error(message);
     }

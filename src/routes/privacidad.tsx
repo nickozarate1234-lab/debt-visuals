@@ -16,7 +16,7 @@ export const Route = createFileRoute("/privacidad")({
       <h2>Voz y comprobantes</h2>
       <p>Cuando registras algo por voz o escaneas un comprobante, el audio o la imagen se envían a Google Gemini solo para extraer el monto, la descripción y la cuenta. No guardamos esos audios ni imágenes. Google procesa ese contenido según sus propios términos.</p>
       <h2>Dónde se guardan</h2>
-      <p>Tus datos se almacenan en Supabase (servidores en Estados Unidos) y la app se sirve desde Vercel. Cada usuario solo puede ver sus propios datos.</p>
+      <p>Tus datos se almacenan en Supabase (servidores en Estados Unidos) y la app se sirve desde Cloudflare. Cada usuario solo puede ver sus propios datos.</p>
       <h2>Tus derechos</h2>
       <p>Puedes pedir una copia o el borrado de tu cuenta y de todos tus datos escribiendo a <a className="text-primary" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.</p>
     </LegalPage>

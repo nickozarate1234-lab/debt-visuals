@@ -9,7 +9,7 @@ function token() {
   if (!t) throw new Error("Falta MP_ACCESS_TOKEN en las variables de entorno del servidor");
   return t;
 }
-export const appUrl = () => (process.env["APP_URL"] || "https://misfinanzasperu.vercel.app").replace(/\/$/, "");
+export const appUrl = () => (process.env["APP_URL"] || "https://misfinanzasperu.pages.dev").replace(/\/$/, "");
 
 async function mp<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API}${path}`, {

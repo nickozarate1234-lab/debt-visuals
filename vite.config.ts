@@ -6,10 +6,10 @@ import viteReact from "@vitejs/plugin-react";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import { nitro } from "nitro/vite";
 
-// Nitro picks the deploy target automatically (Vercel when building on Vercel,
-// a plain Node server locally). Override with NITRO_PRESET if needed.
+// Deploy target: Cloudflare Pages when built there (CF_PAGES is set by Cloudflare),
+// otherwise Nitro auto-detects (plain Node server locally). Override with NITRO_PRESET.
 export default defineConfig(({ command, mode }) => {
-  // Local dev: expose .env / .env.local to server functions (process.env), like Vercel does in production.
+  // Local dev: expose .env / .env.local to server functions (process.env), like Cloudflare does in production.
   if (command === "serve") for (const [k, v] of Object.entries(loadEnv(mode, process.cwd(), ""))) process.env[k] ??= v;
   return {
   plugins: [
@@ -21,7 +21,7 @@ export default defineConfig(({ command, mode }) => {
       // Use src/server.ts (SSR error wrapper) as the server entry.
       server: { entry: "server" },
     }),
-    ...(command === "build" ? [nitro()] : []),
+    ...(command === "build" ? [nitro(process.env["CF_PAGES"] && !process.env["NITRO_PRESET"] ? { preset: "cloudflare-pages" } : {})] : []),
     viteReact(),
   ],
   css: { transformer: "lightningcss" },

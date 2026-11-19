@@ -9,10 +9,12 @@ const CATS = ["Comida", "Transporte", "Suscripciones", "Entretenimiento", "Salud
 export const parseVoucher = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) =>
-    z.object({ image: z.string().min(20).max(6_000_000), today: z.string().max(10), accounts: accountRefsSchema }).parse(d),
+    z.object({ image: z.string().min(20).max(4_000_000), today: z.string().max(10), accounts: accountRefsSchema }).parse(d),
   )
-  .handler(async ({ data }): Promise<VoiceParse | { error: string }> => {
-    const { extractMovement } = await import("@/lib/ai.server");
+  .handler(async ({ data, context }): Promise<VoiceParse | { error: string }> => {
+    const { extractMovement, takeAiQuota } = await import("@/lib/ai.server");
+    const over = await takeAiQuota(context.userId);
+    if (over) return { error: over };
     try {
       const m = /^data:([^;,]+);base64,(.+)$/s.exec(data.image);
       const [, mimeType, base64] = m ?? [];

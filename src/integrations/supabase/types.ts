@@ -304,6 +304,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      consume_ai: { Args: { p_user: string }; Returns: Json }
       expense_to_installments: {
         Args: { p_expense_id: string; p_first_date: string; p_monthly: number; p_num: number; p_original: number }
         Returns: string

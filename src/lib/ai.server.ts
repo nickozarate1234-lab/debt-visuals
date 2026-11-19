@@ -72,3 +72,18 @@ export async function extractMovement(opts: { instructions: string; prompt: stri
   const fecha = p.fecha && /^\d{4}-\d{2}-\d{2}$/.test(p.fecha) ? p.fecha : null;
   return { ...p, transcript: (p.transcript ?? "").trim(), monto: Number(p.monto) || 0, fecha };
 }
+
+/** Takes one AI use for this user (daily cap: free 10, Pro 60, plus a global cap). Returns an error message when over. */
+export async function takeAiQuota(userId: string): Promise<string | null> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin.rpc("consume_ai", { p_user: userId });
+  if (error) {
+    console.error("consume_ai", error);
+    return "No pude usar la IA ahora. Intenta en un momento.";
+  }
+  const r = data as { ok: boolean; reason?: string; limit?: number };
+  if (r.ok) return null;
+  return r.reason === "global"
+    ? "La IA está muy ocupada hoy. Registra a mano y vuelve a intentarlo mañana."
+    : `Llegaste a tus ${r.limit} usos de IA de hoy. Puedes registrar a mano o volver mañana.`;
+}

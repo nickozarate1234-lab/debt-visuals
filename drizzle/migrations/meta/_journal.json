@@ -43,6 +43,13 @@
       "when": 1795059500058,
       "tag": "0005_suscripciones_pro",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795062787802,
+      "tag": "0006_seguridad_ia",
+      "breakpoints": true
     }
   ]
 }

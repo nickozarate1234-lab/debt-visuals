@@ -4,8 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-// Google sign-in shows only once the Google provider is configured in Supabase (set VITE_GOOGLE_AUTH=true).
-const GOOGLE_AUTH = import.meta.env["VITE_GOOGLE_AUTH"] === "true";
+// Google sign-in is on (provider configured in Supabase). Set VITE_GOOGLE_AUTH=false to hide it.
+const GOOGLE_AUTH = import.meta.env["VITE_GOOGLE_AUTH"] !== "false";
 
 export function AuthScreen() {
   const [mode, setMode] = useState<"in" | "up">("in");

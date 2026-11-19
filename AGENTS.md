@@ -1,11 +1,7 @@
-<!-- LOVABLE:BEGIN -->
-> [!IMPORTANT]
-> This project is connected to [Lovable](https://lovable.dev). Avoid rewriting
-> published git history — force pushing, or rebasing/amending/squashing commits
-> that are already pushed — as it rewrites history on Lovable's side and the
-> user will likely lose their project history.
->
-> Commits you push to the connected branch sync back to Lovable and show up in
-> the editor, so keep the branch in a working state.
-<!-- LOVABLE:END -->
+- Stack: TanStack Start (React 19, Vite, Nitro) on Vercel; data and auth in our own Supabase project; voice and voucher parsing with Gemini (`src/lib/ai.server.ts`). No Lovable services remain.
+- Production deploys from the branch Vercel tracks; keep it in a working state and don't rewrite pushed history.
+- Secrets live only in `.env.local` (local) and Vercel environment variables. `.env.example` is the committed template: never put real values in it. `SUPABASE_DB_URL` (with the database password) stays local; it is not needed by the app.
+- Schema changes: add a SQL file under `drizzle/migrations/` plus its entry in `meta/_journal.json`, then `node node_modules/drizzle-kit/bin.cjs migrate`. Keep `src/integrations/supabase/types.ts` in sync by hand.
+- `scripts/import-backup.sh` replaces all app data and users with a pg_dump backup. It is destructive: only run it when the user asks.
 - Demo mode (`/?demo=true`) renders the app from in-memory data in src/lib/demo-data.ts and never reads or writes the database — keeps real data private for marketing/AI recording.
+- Card math lives in `src/lib/finance.ts` (statements, cuotas schedule, credit line, projection) with tests in `src/lib/finance.test.ts`.

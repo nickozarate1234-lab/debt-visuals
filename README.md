@@ -1,26 +1,45 @@
-# My Money Flow
+# Mis Finanzas
 
-Te explico. Comence teniendo ese excel para tener un registro mas ordenado de el uso de mis tarjetas de credito, de las cuotas que tengo en mi tarjeta de credito, en mi liquidez con bcp. Tambien de proyecciones para ver cuanto tengo en las proximas semanas o meses, a ver si me quedo en rojo en no. Tengo la informacion de deudas y de fechas de corte y pago de cada tarjeta, todo esos datos los tienes en el excel adjuntado con sus respectivas formulas. Tuve la idea de automatizar todo, con un shortcut desde mi iphone cada vez que gasto (para no estar registrando todo manualmente en el excel), se me ocurrio hacer una interfaz html o pwa con los datos y funcionalidades del excel hasta el dia de hoy para que al hacer un gasto o movimiento, primero me pregunte cuanto gaste, si use io o bcp, si use io que categoria fue, si fue bcp elegir entre ingreso o egreso, con su debida fecha por si use tarjeta de credito saber cuando me toca pagarla, y asi. En el excel esta todo bien ordenado y explicado la funcionalidad. Entonces una vez registre eso en el shortcut, se vaya a la base de datos y se cargue en la pwa de una. Mucho mas rapido y sencilo que me tome 10 segundos hacerlo con el shortcut del iphone mas que registrar celda x celda. Te adjunto una idea que me hizo una ia de como seria el pwa. No funciono porque era un artifact y tenia fallos. Con esto puede estar publicada. Si tienes dudas preguntame. Lo que necesito es, lo del excel datos y como funciona todo el sistema, lo pases a una supabase y me crees tambien el frontend y su backend con los datos unidos. Todo para que pueda registrar las transacciones desde shortcut de iphone, la entrar al pwa debo poder ver todo lo del excel pero con estilo y forma. \
+PWA de finanzas personales: cuentas de débito, tarjetas de crédito (cortes, pagos, cuotas y línea disponible), deudas, suscripciones y una proyección del saldo a 6 meses. Los movimientos se registran a mano, por voz, escaneando un voucher o desde un atajo de iPhone.
 
-This project was built with [Lovable](https://lovable.dev).
+**En producción:** https://misfinanzasperu.vercel.app · **Demo sin login:** https://misfinanzasperu.vercel.app/?demo=true
 
-**Live app**: https://debt-visuals.lovable.app
+## Stack
 
-## Build with Lovable
+- TanStack Start (React 19 + Vite + Nitro), desplegado en Vercel
+- Supabase: Postgres con RLS por usuario y Auth (correo; Google opcional)
+- Gemini para leer audios y comprobantes (`src/lib/ai.server.ts`)
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/4cf1b94a-8612-422d-b1db-98a6b604bee3).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+## Desarrollo local
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+npm install
+cp .env.example .env.local   # y completa los valores
+npm run dev                  # http://localhost:8080
+npm test
 ```
+
+Variables (ver `.env.example`): `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY` y, solo en local, `SUPABASE_DB_URL` para migraciones. Las mismas (menos `SUPABASE_DB_URL`) van en Vercel → Settings → Environment Variables.
+
+## Base de datos
+
+Las migraciones están en `drizzle/migrations/`. Para aplicarlas:
+
+```sh
+node node_modules/drizzle-kit/bin.cjs migrate
+```
+
+## Atajo de iPhone
+
+`POST /api/public/shortcut` con JSON:
+
+| Campo | Obligatorio | Ejemplo |
+|---|---|---|
+| `token` | sí | el de Ajustes en la app |
+| `monto` | sí | `12.5` |
+| `descripcion` | sí | `"Almuerzo"` |
+| `cuenta` | o `tipo` | `"LATAM Pass"` (nombre de cualquier cuenta o tarjeta) |
+| `tipo` | o `cuenta` | `"bcp"` (débito) o `"io"` (tarjeta) |
+| `movimiento` | no | `"egreso"` (por defecto) o `"ingreso"` |
+| `categoria` | no | `"Comida"` (solo tarjetas) |
+| `fecha` | no | `"2026-11-18"` |

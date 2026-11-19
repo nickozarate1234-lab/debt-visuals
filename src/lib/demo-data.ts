@@ -29,8 +29,8 @@ export function buildDemoData() {
   const accounts: Account[] = [
     { id: "d-bcp", name: "BCP Sueldo", kind: "debito", legacy: "bcp", cut_day: 0, pay_day: 0, archived: false },
     { id: "d-ibk", name: "Interbank Ahorro", kind: "debito", legacy: null, cut_day: 0, pay_day: 0, archived: false },
-    { id: "d-io", name: "iO Visa", kind: "credito", legacy: "io", cut_day: 25, pay_day: 12, archived: false },
-    { id: "d-bbva", name: "BBVA Signature", kind: "credito", legacy: null, cut_day: 5, pay_day: 28, archived: false },
+    { id: "d-io", name: "iO Visa", kind: "credito", legacy: "io", cut_day: 25, pay_day: 12, archived: false, credit_limit: 3000 },
+    { id: "d-bbva", name: "BBVA Signature", kind: "credito", legacy: null, cut_day: 5, pay_day: 28, archived: false, credit_limit: 8000 },
   ];
   const mv: [number, string, number, string][] = [
     [-60, "Saldo inicial", 5200, "d-bcp"],

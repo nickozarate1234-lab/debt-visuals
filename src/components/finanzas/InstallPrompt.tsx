@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Download, Share, SquarePlus, X } from "lucide-react";
+import { Copy, Download, ExternalLink, Share, SquarePlus, X } from "lucide-react";
 
 type BeforeInstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: "accepted" | "dismissed" }> };
 
@@ -24,7 +24,8 @@ function snooze() {
 
 /** Offers "install as app": the native prompt on Android/Chrome, a two-step guide on iPhone Safari. */
 export function InstallPrompt() {
-  const [mode, setMode] = useState<"android" | "ios" | null>(null);
+  const [mode, setMode] = useState<"android" | "ios" | "open-safari" | "open-chrome" | null>(null);
+  const [copied, setCopied] = useState(false);
   const [evt, setEvt] = useState<BeforeInstallPromptEvent | null>(null);
 
   useEffect(() => {
@@ -34,9 +35,14 @@ export function InstallPrompt() {
 
     const ua = navigator.userAgent;
     const isIOS = /iPhone|iPad|iPod/.test(ua) || (ua.includes("Macintosh") && navigator.maxTouchPoints > 1);
-    // Only Safari can add to the home screen on iOS; skip in-app browsers (Instagram, WhatsApp...) and other iOS browsers.
-    const isIOSSafari = isIOS && /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|Instagram|FBAN|FBAV|WhatsApp|Line\//.test(ua);
-    const t = isIOSSafari ? window.setTimeout(() => setMode("ios"), 2500) : undefined;
+    // Browsers inside other apps (Instagram, Facebook, TikTok, LinkedIn…) and, on iPhone, any browser that isn't Safari can't install.
+    const inApp = /Instagram|FBAN|FBAV|FB_IAB|BytedanceWebview|musical_ly|TikTok|LinkedInApp|Snapchat|Line\/|Twitter|WhatsApp/i.test(ua) || /; wv\)/.test(ua);
+    const otherIOSBrowser = isIOS && /CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+    const isIOSSafari = isIOS && /Safari/.test(ua) && !inApp && !otherIOSBrowser;
+    // Dev preview: ?install=ios|android|open-safari|open-chrome
+    const forced = import.meta.env.DEV ? new URLSearchParams(window.location.search).get("install") : null;
+    const next = forced ?? (isIOSSafari ? "ios" : isIOS && (inApp || otherIOSBrowser) ? "open-safari" : !isIOS && inApp ? "open-chrome" : null);
+    const t = next && next !== "android" ? window.setTimeout(() => setMode(next as typeof mode), forced ? 300 : 2500) : undefined;
 
     const onPrompt = (e: Event) => {
       e.preventDefault();
@@ -58,6 +64,14 @@ export function InstallPrompt() {
     snooze();
     setMode(null);
   };
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.origin);
+      setCopied(true);
+    } catch {
+      /* clipboard blocked: the link is shown on screen */
+    }
+  };
   const install = async () => {
     if (!evt) return;
     await evt.prompt();
@@ -69,7 +83,7 @@ export function InstallPrompt() {
 
   return (
     <div role="dialog" aria-label="Instalar Mis Finanzas" className="fixed inset-x-3 top-20 z-40 mx-auto max-w-md animate-in fade-in slide-in-from-top-2">
-      <div className="glass glass-glow flex items-start gap-3 rounded-3xl p-4">
+      <div className="glass flex items-start gap-3 rounded-3xl p-4 shadow-2xl" style={{ background: "radial-gradient(90% 120% at 0% 0%, oklch(0.6 0.15 155 / 25%), transparent 60%), oklch(0.21 0.014 250 / 97%)" }}>
         <img src="/icons/icon-192.png" alt="" className="size-11 shrink-0 rounded-xl" />
         <div className="min-w-0 flex-1">
           <div className="font-display text-sm font-bold">Instala Mis Finanzas</div>
@@ -78,6 +92,16 @@ export function InstallPrompt() {
               <p className="mt-0.5 text-xs text-muted-foreground">Ábrela desde tu inicio como cualquier app, a pantalla completa.</p>
               <button onClick={install} className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-glow">
                 <Download className="size-3.5" /> Instalar app
+              </button>
+            </>
+          ) : mode === "open-safari" || mode === "open-chrome" ? (
+            <>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Desde aquí no se puede instalar. Ábrela en <b className="text-foreground">{mode === "open-safari" ? "Safari" : "Chrome"}</b>: toca{" "}
+                <ExternalLink className="inline size-3.5 align-[-2px]" /> o <b className="text-foreground">⋯</b> y elige “Abrir en {mode === "open-safari" ? "Safari" : "el navegador"}”.
+              </p>
+              <button onClick={copyLink} className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-glow">
+                <Copy className="size-3.5" /> {copied ? "¡Link copiado! Pégalo en " + (mode === "open-safari" ? "Safari" : "Chrome") : "Copiar link"}
               </button>
             </>
           ) : (

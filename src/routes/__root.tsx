@@ -98,6 +98,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" },
       { rel: "manifest", href: "/manifest.webmanifest" },
     ],
+    // Cloudflare Web Analytics (cookieless). The token is public by design.
+    scripts: [
+      {
+        src: "https://static.cloudflareinsights.com/beacon.min.js",
+        defer: true,
+        "data-cf-beacon": '{"token": "7ccd07b3718a46adba06b86888d3a065"}',
+      },
+    ],
   }),
   shellComponent: RootShell,
   component: RootComponent,

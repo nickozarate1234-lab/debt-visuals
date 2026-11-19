@@ -11,10 +11,10 @@ export const parseVoucher = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z.object({ image: z.string().min(20).max(4_000_000), today: z.string().max(10), accounts: accountRefsSchema }).parse(d),
   )
-  .handler(async ({ data, context }): Promise<VoiceParse | { error: string }> => {
+  .handler(async ({ data, context }): Promise<VoiceParse | { error: string; upsell?: boolean }> => {
     const { extractMovement, takeAiQuota } = await import("@/lib/ai.server");
     const over = await takeAiQuota(context.userId);
-    if (over) return { error: over };
+    if (over) return over;
     try {
       const m = /^data:([^;,]+);base64,(.+)$/s.exec(data.image);
       const [, mimeType, base64] = m ?? [];

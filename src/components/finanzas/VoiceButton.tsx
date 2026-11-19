@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { todayStr, type Account } from "@/lib/finance";
 import { ConfirmDraft } from "./ConfirmDraft";
+import { openPaywall } from "@/lib/plans";
 import { parseVoice, type VoiceParse } from "@/lib/voice.functions";
 import { cn } from "@/lib/utils";
 
@@ -34,7 +35,10 @@ export function VoiceButton({ userId, accounts }: { userId: string; accounts: Ac
         for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
         try {
           const res = await parse({ data: { audio: btoa(bin), mime: r.mimeType, today: todayStr(), accounts: refs } });
-          if ("error" in res) toast.error(res.error);
+          if ("error" in res) {
+            toast.error(res.error);
+            if ("upsell" in res && res.upsell) openPaywall();
+          }
           else setDraft(res);
         } catch {
           toast.error("No pude procesar el audio");

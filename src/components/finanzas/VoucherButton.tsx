@@ -6,6 +6,7 @@ import { todayStr, type Account } from "@/lib/finance";
 import type { VoiceParse } from "@/lib/voice.functions";
 import { parseVoucher } from "@/lib/voucher.functions";
 import { ConfirmDraft } from "./ConfirmDraft";
+import { openPaywall } from "@/lib/plans";
 
 async function compress(file: File): Promise<string> {
   const url = URL.createObjectURL(file);
@@ -41,7 +42,10 @@ export function VoucherButton({ userId, accounts }: { userId: string; accounts: 
     try {
       const image = await compress(f);
       const res = await parse({ data: { image, today: todayStr(), accounts: refs } });
-      if ("error" in res) toast.error(res.error);
+      if ("error" in res) {
+            toast.error(res.error);
+            if ("upsell" in res && res.upsell) openPaywall();
+          }
       else setDraft(res);
     } catch {
       toast.error("No pude leer la imagen");

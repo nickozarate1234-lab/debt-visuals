@@ -15,10 +15,10 @@ export const parseVoice = createServerFn({ method: "POST" })
       .object({ audio: z.string().min(10).max(3_000_000), mime: z.string().max(80), today: z.string().max(10), accounts: accountRefsSchema })
       .parse(d),
   )
-  .handler(async ({ data, context }): Promise<VoiceParse | { error: string }> => {
+  .handler(async ({ data, context }): Promise<VoiceParse | { error: string; upsell?: boolean }> => {
     const { extractMovement, takeAiQuota } = await import("@/lib/ai.server");
     const over = await takeAiQuota(context.userId);
-    if (over) return { error: over };
+    if (over) return over;
     try {
       const p = await extractMovement({
         mimeType: data.mime.split(";")[0] || "audio/mp4",

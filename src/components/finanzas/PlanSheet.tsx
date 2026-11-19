@@ -140,7 +140,7 @@ export function PlanSheet({ plan }: { plan: MyPlan | null }) {
             )}
 
             <ul className="space-y-1.5 text-sm">
-              {["Registros ilimitados: a mano, por voz, con el escáner o el atajo de iPhone", "Tarjetas, cuotas y línea de crédito sin tope", "Proyección de tu saldo a 6 meses"].map((t) => (
+              {["Registros ilimitados: a mano, con el atajo de iPhone y más", "60 registros con IA al día por voz o escáner (gratis: 10)", "Tarjetas, cuotas, línea de crédito y proyección a 6 meses"].map((t) => (
                 <li key={t} className="flex gap-2">
                   <Check className="mt-0.5 size-4 shrink-0 text-primary" />
                   {t}

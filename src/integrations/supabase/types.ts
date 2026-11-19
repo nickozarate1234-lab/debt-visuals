@@ -308,7 +308,16 @@ export type Database = {
         Args: { p_expense_id: string; p_first_date: string; p_monthly: number; p_num: number; p_original: number }
         Returns: string
       }
+      apply_payment: {
+        Args: { p_amount: number; p_currency: string; p_days: number; p_plan: string; p_provider_payment_id: string; p_status: string; p_user: string }
+        Returns: boolean
+      }
+      apply_subscription: {
+        Args: { p_paid_until: string | null; p_status: string; p_subscription_id: string; p_user: string }
+        Returns: undefined
+      }
       init_my_account: { Args: never; Returns: undefined }
+      my_plan: { Args: never; Returns: Json }
     }
     Enums: {
       [_ in never]: never

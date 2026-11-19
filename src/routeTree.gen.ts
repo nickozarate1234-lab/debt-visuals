@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PrivacidadRouteImport } from './routes/privacidad'
 import { Route as TerminosRouteImport } from './routes/terminos'
+import { Route as ApiPublicMpWebhookRouteImport } from './routes/api/public/mp-webhook'
 import { Route as ApiPublicShortcutRouteImport } from './routes/api/public/shortcut'
 
 const IndexRoute = IndexRouteImport.update({
@@ -29,6 +30,11 @@ const TerminosRoute = TerminosRouteImport.update({
   path: '/terminos',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicMpWebhookRoute = ApiPublicMpWebhookRouteImport.update({
+  id: '/api/public/mp-webhook',
+  path: '/api/public/mp-webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicShortcutRoute = ApiPublicShortcutRouteImport.update({
   id: '/api/public/shortcut',
   path: '/api/public/shortcut',
@@ -39,12 +45,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/privacidad': typeof PrivacidadRoute
   '/terminos': typeof TerminosRoute
+  '/api/public/mp-webhook': typeof ApiPublicMpWebhookRoute
   '/api/public/shortcut': typeof ApiPublicShortcutRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/privacidad': typeof PrivacidadRoute
   '/terminos': typeof TerminosRoute
+  '/api/public/mp-webhook': typeof ApiPublicMpWebhookRoute
   '/api/public/shortcut': typeof ApiPublicShortcutRoute
 }
 export interface FileRoutesById {
@@ -52,20 +60,38 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/privacidad': typeof PrivacidadRoute
   '/terminos': typeof TerminosRoute
+  '/api/public/mp-webhook': typeof ApiPublicMpWebhookRoute
   '/api/public/shortcut': typeof ApiPublicShortcutRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/privacidad' | '/terminos' | '/api/public/shortcut'
+  fullPaths:
+    | '/'
+    | '/privacidad'
+    | '/terminos'
+    | '/api/public/mp-webhook'
+    | '/api/public/shortcut'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/privacidad' | '/terminos' | '/api/public/shortcut'
-  id: '__root__' | '/' | '/privacidad' | '/terminos' | '/api/public/shortcut'
+  to:
+    | '/'
+    | '/privacidad'
+    | '/terminos'
+    | '/api/public/mp-webhook'
+    | '/api/public/shortcut'
+  id:
+    | '__root__'
+    | '/'
+    | '/privacidad'
+    | '/terminos'
+    | '/api/public/mp-webhook'
+    | '/api/public/shortcut'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   PrivacidadRoute: typeof PrivacidadRoute
   TerminosRoute: typeof TerminosRoute
+  ApiPublicMpWebhookRoute: typeof ApiPublicMpWebhookRoute
   ApiPublicShortcutRoute: typeof ApiPublicShortcutRoute
 }
 
@@ -92,6 +118,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TerminosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/mp-webhook': {
+      id: '/api/public/mp-webhook'
+      path: '/api/public/mp-webhook'
+      fullPath: '/api/public/mp-webhook'
+      preLoaderRoute: typeof ApiPublicMpWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/shortcut': {
       id: '/api/public/shortcut'
       path: '/api/public/shortcut'
@@ -106,6 +139,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   PrivacidadRoute: PrivacidadRoute,
   TerminosRoute: TerminosRoute,
+  ApiPublicMpWebhookRoute: ApiPublicMpWebhookRoute,
   ApiPublicShortcutRoute: ApiPublicShortcutRoute,
 }
 export const routeTree = rootRouteImport

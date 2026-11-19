@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Account, Profile } from "@/lib/finance";
 import { AccountsManager } from "./AccountsManager";
+import { openPaywall } from "@/lib/plans";
 
 const FIELDS: { k: keyof Profile; l: string; type?: string }[] = [
   { k: "mesada1_day", l: "Mesada 1 · día" },
@@ -53,6 +54,11 @@ export function SettingsSheet({ open, onOpenChange, profile, accounts, onSaved }
           ))}
           <Button onClick={save} className="col-span-2 mt-2 rounded-xl">Guardar cambios</Button>
         </div>
+
+        <button onClick={openPaywall} className="mx-4 mt-6 flex w-[calc(100%-2rem)] items-center justify-between rounded-2xl border border-primary/30 bg-primary/10 p-4 text-left">
+          <span className="font-display font-semibold">Mi plan</span>
+          <span className="text-sm text-primary">Ver planes y estado →</span>
+        </button>
 
         <AccountsManager userId={profile.user_id} accounts={accounts} />
 

@@ -29,6 +29,20 @@
       "when": 1795045496505,
       "tag": "0003_cuotas_linea",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795059363280,
+      "tag": "0004_planes_pagos",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795059500058,
+      "tag": "0005_suscripciones_pro",
+      "breakpoints": true
     }
   ]
 }

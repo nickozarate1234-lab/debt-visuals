@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { IO_CATEGORIES, todayStr, type Account } from "@/lib/finance";
 import type { VoiceParse } from "@/lib/voice.functions";
 import { cn } from "@/lib/utils";
+import { isLimitError, openPaywall } from "@/lib/plans";
 
 export function ConfirmDraft({
   draft,
@@ -37,6 +38,7 @@ export function ConfirmDraft({
       ? await supabase.from("io_expenses").insert({ user_id: userId, account_id: acc.id, date: fecha, description: draft.descripcion.slice(0, 200), category: draft.categoria, amount: draft.monto, source })
       : await supabase.from("bcp_movements").insert({ user_id: userId, account_id: acc.id, date: fecha, concept: draft.descripcion.slice(0, 200), amount: draft.movimiento === "ingreso" ? draft.monto : -draft.monto, source });
     setSaving(false);
+    if (isLimitError(error)) { toast.error("Llegaste a tus registros gratis"); setDraft(null); openPaywall(); return; }
     if (error) { toast.error(error.message); return; }
     toast.success(`${successMsg} en ${acc.name}`);
     setDraft(null);

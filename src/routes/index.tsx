@@ -4,6 +4,7 @@ import { DEMO_USER_ID } from "@/lib/demo-data";
 import { toast } from "sonner";
 import { AlertTriangle, CheckCircle2, CreditCard, LineChart, Plus, Receipt, Settings, Split, Trash2, Wallet, Home, Repeat } from "lucide-react";
 import { CuotasDialog } from "@/components/finanzas/CuotasDialog";
+import { PlanBanner, PlanSheet, usePlan } from "@/components/finanzas/PlanSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { useFinanceData, useSession } from "@/hooks/use-finance";
 import { AuthScreen } from "@/components/finanzas/AuthScreen";
@@ -119,6 +120,7 @@ function App({ userId, demo = false }: { userId: string; demo?: boolean }) {
   const [addKind, setAddKind] = useState<AddKind>("io");
   const [settings, setSettings] = useState(false);
   const activeAccounts = useMemo(() => accounts.filter((a) => !a.archived), [accounts]);
+  const plan = usePlan(!demo);
 
   const openAdd = () => {
     setAddKind(tab === "liquidez" ? "bcp" : tab === "cuotas" ? "deuda" : "io");
@@ -145,7 +147,10 @@ function App({ userId, demo = false }: { userId: string; demo?: boolean }) {
             ))}
           </div>
         ) : (
-          <Views tab={tab} profile={profile} bcp={bcp} io={io} cuotas={cuotas} accounts={accounts} debts={debts} subs={subs} userId={userId} />
+          <>
+            {tab === "resumen" && <PlanBanner plan={plan} />}
+            <Views tab={tab} profile={profile} bcp={bcp} io={io} cuotas={cuotas} accounts={accounts} debts={debts} subs={subs} userId={userId} />
+          </>
         )}
       </main>
 
@@ -170,6 +175,7 @@ function App({ userId, demo = false }: { userId: string; demo?: boolean }) {
 
       <AddDialog open={addOpen} onOpenChange={setAddOpen} kind={addKind} setKind={setAddKind} userId={userId} accounts={accounts} />
       <VoiceButton userId={userId} accounts={activeAccounts} />
+      {!demo && <PlanSheet plan={plan} />}
       {profile && <SettingsSheet open={settings} onOpenChange={setSettings} profile={profile} accounts={accounts} onSaved={reload} />}
     </div>
   );

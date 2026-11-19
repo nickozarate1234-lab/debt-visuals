@@ -28,6 +28,8 @@ const schema = z
   })
   .refine((d) => d.tipo || d.cuenta, { message: "Envía tipo (bcp/io) o cuenta (nombre)", path: ["cuenta"] });
 
+const LIMIT_MSG = "Llegaste a tus 200 registros gratis. Activa Pro en la app para seguir registrando.";
+
 const CATS = ["Comida", "Transporte", "Suscripciones", "Entretenimiento", "Salud", "Otros"];
 
 type Acc = { id: string; name: string; kind: string; legacy: string | null };
@@ -104,7 +106,7 @@ export const Route = createFileRoute("/api/public/shortcut")({
             amount: d.monto,
             source: "shortcut",
           });
-          if (error) return Response.json({ ok: false, mensaje: error.message }, { status: 500 });
+          if (error) return error.message.includes("LIMITE_GRATIS") ? Response.json({ ok: false, mensaje: LIMIT_MSG }, { status: 402 }) : Response.json({ ok: false, mensaje: error.message }, { status: 500 });
           return Response.json({ ok: true, mensaje: `${label}: ${d.descripcion} S/ ${d.monto.toFixed(2)} (${cat}) registrado` });
         }
 
@@ -117,7 +119,7 @@ export const Route = createFileRoute("/api/public/shortcut")({
           amount,
           source: "shortcut",
         });
-        if (error) return Response.json({ ok: false, mensaje: error.message }, { status: 500 });
+        if (error) return error.message.includes("LIMITE_GRATIS") ? Response.json({ ok: false, mensaje: LIMIT_MSG }, { status: 402 }) : Response.json({ ok: false, mensaje: error.message }, { status: 500 });
         // Balance of this account (rows without account belong to the original BCP account).
         let q = supabaseAdmin.from("bcp_movements").select("amount").eq("user_id", profile.user_id);
         q = acc ? (acc.legacy === "bcp" ? q.or(`account_id.eq.${acc.id},account_id.is.null`) : q.eq("account_id", acc.id)) : q.is("account_id", null);

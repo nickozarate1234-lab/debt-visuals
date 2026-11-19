@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { IO_CATEGORIES, fmtDate, nextPayDate, todayStr, type Account } from "@/lib/finance";
 import { cn } from "@/lib/utils";
+import { isLimitError, openPaywall } from "@/lib/plans";
 
 export type AddKind = "io" | "bcp" | "traspaso" | "cuota" | "deuda";
 
@@ -135,6 +136,7 @@ export function AddDialog({
     }
     setBusy(false);
     if (error) {
+      if (isLimitError(error)) { toast.error("Llegaste a tus registros gratis"); openPaywall(); return; }
       toast.error(error.message);
       return;
     }

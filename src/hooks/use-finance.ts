@@ -92,6 +92,8 @@ export function useFinanceData(enabled: boolean, demo = false) {
   useEffect(() => {
     if (demo) {
       const d = buildDemoData();
+      // Demo only: ?moneda=USD previews the app with dollars as the main currency.
+      if (new URLSearchParams(window.location.search).get("moneda") === "USD") d.profile.currency = "USD";
       setProfile(d.profile); setBcp(d.bcp); setIo(d.io); setCuotas(d.cuotas); setAccounts(d.accounts); setDebts(d.debts); setSubs(d.subs);
       setLoading(false);
       return;

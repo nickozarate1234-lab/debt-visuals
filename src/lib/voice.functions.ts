@@ -25,11 +25,11 @@ export const parseVoice = createServerFn({ method: "POST" })
         base64: data.audio,
         accountIds: data.accounts.map((a) => a.id),
         prompt: "Transcribe este audio y extrae el movimiento financiero.",
-        instructions: `Recibes un audio corto en español peruano donde alguien registra un gasto o ingreso en soles. Hoy es ${data.today} (Lima).
+        instructions: `Recibes un audio corto en español peruano donde alguien registra un gasto o ingreso (en soles o en dólares). Hoy es ${data.today} (Lima).
 transcript: transcripción literal del audio. Si no se escucha nada, cadena vacía.
 ${accountsGuide(data.accounts, "voz")}
 movimiento: "ingreso" si recibe/le depositan/le pagan; si no, "egreso". Con tarjeta de crédito siempre "egreso".
-monto: número positivo en soles ("lucas" = soles).
+monto: número positivo, en la moneda que dice ("lucas" = soles).
 descripcion: concepto corto con mayúscula inicial (ej. "Pasaje", "Almuerzo menú").
 categoria: una de ${CATS.join(", ")}.
 fecha: YYYY-MM-DD si dice "ayer", una fecha, etc.; si no, cadena vacía.

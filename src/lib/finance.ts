@@ -1,5 +1,20 @@
+/** Currencies the app supports (soles and dollars for now). */
+export type Cur = "PEN" | "USD";
+export const CURRENCIES: Cur[] = ["PEN", "USD"];
+export const CUR_LABEL: Record<Cur, string> = { PEN: "Soles", USD: "Dólares" };
+export const CUR_SYMBOL: Record<Cur, string> = { PEN: "S/", USD: "US$" };
+export const asCur = (v: unknown): Cur => (v === "USD" ? "USD" : "PEN");
+
 export type Profile = {
   user_id: string;
+  /** Main currency: totals, projection and the traffic light are shown in it. */
+  currency?: Cur;
+  /** False until a new user picks the main currency in the welcome step. */
+  currency_set?: boolean;
+  /** Own exchange rate (soles per dollar); null/undefined = today's automatic rate. */
+  usd_rate?: number | null;
+  mesada1_currency?: Cur;
+  mesada2_currency?: Cur;
   shortcut_token: string;
   mesada1_day: number;
   mesada1_amount: number;
@@ -22,9 +37,11 @@ export type BcpMovement = {
   account_id?: string | null;
   transfer_id?: string | null;
   paid_card_id?: string | null;
+  /** Card payment from an account in another currency: amount credited to the card, in the card's currency. */
+  card_amount?: number | null;
 };
 export type IoExpense = { id: string; date: string; description: string; category: string; amount: number; account_id?: string | null };
-export type Account = { id: string; name: string; kind: "debito" | "credito"; legacy: string | null; cut_day: number; pay_day: number; archived: boolean; credit_limit?: number | null };
+export type Account = { id: string; name: string; kind: "debito" | "credito"; legacy: string | null; cut_day: number; pay_day: number; archived: boolean; credit_limit?: number | null; currency?: Cur };
 export type Debt = {
   id: string;
   name: string;
@@ -68,8 +85,8 @@ const dayOf = (y: number, m: number, day: number) => {
   return ymd(new Date(y, m, Math.min(day, last)));
 };
 
-export const money = (n: number, sign = false) => {
-  const s = `S/ ${Math.abs(n).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+export const money = (n: number, sign = false, cur: Cur = "PEN") => {
+  const s = `${CUR_SYMBOL[cur]} ${Math.abs(n).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   if (!sign) return n < 0 ? `−${s}` : s;
   return n < 0 ? `−${s}` : `+${s}`;
 };
@@ -140,7 +157,7 @@ export function installmentStatus(i: Installment, payDay: number | undefined, to
   return { due, paid, remaining, next: due[paid] ?? null, remainingAmount: remaining * m, principal: Math.min(principal, Number(i.original_amount)), rate };
 }
 
-export const withBalances = (rows: BcpMovement[]) => {
+export const withBalances = <T extends BcpMovement>(rows: T[]) => {
   const sorted = [...rows].sort((a, b) => a.seq - b.seq);
   let bal = 0;
   return sorted.map((r) => ({ ...r, balance: (bal += Number(r.amount)) }));
@@ -154,6 +171,21 @@ export const ioPaymentOn = (date: string, io: IoExpense[], cuotas: Installment[]
     .reduce((s, c) => s + Number(c.monthly_amount), 0);
   return { gastos, cuotas: cuo, total: gastos + cuo };
 };
+
+/** Exchange context: the main currency and how many soles one dollar is worth. */
+export type Fx = { main: Cur; rate: number };
+export const DEFAULT_FX: Fx = { main: "PEN", rate: 1 };
+/** Converts an amount from `from` to the main currency (or to `to`). */
+export function conv(amount: number, from: Cur, fx: Fx, to: Cur = fx.main) {
+  const n = Number(amount) || 0;
+  if (from === to) return n;
+  return from === "USD" ? n * fx.rate : n / fx.rate;
+}
+export const accCur = (accounts: Account[], id: string | null | undefined): Cur => asCur(accounts.find((a) => a.id === id)?.currency);
+export const fxFromProfile = (p: Pick<Profile, "currency" | "usd_rate"> | null | undefined, autoRate: number): Fx => ({
+  main: asCur(p?.currency),
+  rate: p?.usd_rate && Number(p.usd_rate) > 0 ? Number(p.usd_rate) : autoRate,
+});
 
 /** Rows with no account belong to the original BCP (debit) / iO (credit) account. */
 export const legacyId = (accounts: Account[], legacy: "bcp" | "io") => accounts.find((a) => a.legacy === legacy)?.id ?? null;
@@ -185,7 +217,7 @@ export function cardPaymentOn(card: Account, payDate: string, accounts: Account[
   const prev = addMonths(payDate, -1);
   const paid = bcp
     .filter((r) => r.paid_card_id === card.id && (r.date ?? today) > prev && (r.date ?? today) <= payDate)
-    .reduce((s, r) => s - Number(r.amount), 0);
+    .reduce((s, r) => s + (r.card_amount != null ? Number(r.card_amount) : -Number(r.amount)), 0);
   return { ...base, paid, due: Math.max(0, base.total - paid) };
 }
 
@@ -207,7 +239,8 @@ export function cardCreditUsed(card: Account, accounts: Account[], io: IoExpense
   return { limit, gastos, cuotas: enCuotas, used, available: limit == null ? null : limit - used };
 }
 
-export type ProjEvent = { date: string; concept: string; amount: number; balance: number };
+/** A projected event: `amount`/`balance` in the main currency; `cur`/`original` keep the event's own currency. */
+export type ProjEvent = { date: string; concept: string; amount: number; balance: number; cur: Cur; original: number };
 
 export function project(
   p: Profile,
@@ -218,8 +251,11 @@ export function project(
   accounts: Account[] = [],
   debts: Debt[] = [],
   subs: Subscription[] = [],
+  fx: Fx = DEFAULT_FX,
 ) {
-  const start = currentBalance(bcp);
+  // Everything is projected in the main currency: each amount is converted from its own currency.
+  const debitCur = (r: { account_id?: string | null }) => accCur(accounts, debitOf(r, accounts));
+  const start = bcp.reduce((s, r) => s + conv(Number(r.amount), debitCur(r), fx), 0);
   const raw: Omit<ProjEvent, "balance">[] = [];
   const t = parse(today);
   const limit = addMonths(today, p.projection_months);
@@ -227,21 +263,24 @@ export function project(
   for (let k = 0; k <= p.projection_months; k++) {
     const y = t.getFullYear();
     const m = t.getMonth() + k;
-    raw.push({ date: dayOf(y, m, p.mesada1_day), concept: "Sueldo", amount: Number(p.mesada1_amount) });
-    raw.push({ date: dayOf(y, m, p.mesada2_day), concept: "Sueldo", amount: Number(p.mesada2_amount) });
+    raw.push({ date: dayOf(y, m, p.mesada1_day), concept: "Sueldo", amount: conv(Number(p.mesada1_amount), asCur(p.mesada1_currency), fx), cur: asCur(p.mesada1_currency), original: Number(p.mesada1_amount) });
+    raw.push({ date: dayOf(y, m, p.mesada2_day), concept: "Sueldo", amount: conv(Number(p.mesada2_amount), asCur(p.mesada2_currency), fx), cur: asCur(p.mesada2_currency), original: Number(p.mesada2_amount) });
     for (const c of cards) {
       const payDate = dayOf(y, m, c.pay_day);
       const pay = cardPaymentOn(c, payDate, accounts, io, cuotas, bcp, today);
-      if (pay.due !== 0) raw.push({ date: payDate, concept: `Pago ${c.name} (gastos + cuotas)`, amount: -pay.due });
+      if (pay.due !== 0) raw.push({ date: payDate, concept: `Pago ${c.name} (gastos + cuotas)`, amount: -conv(pay.due, asCur(c.currency), fx), cur: asCur(c.currency), original: -pay.due });
     }
   }
-  for (const d of debts)
-    for (const date of debtDates(d, today, limit)) raw.push({ date, concept: d.name, amount: -Number(d.monthly_amount) });
+  for (const d of debts) {
+    const cur = debitCur({ account_id: d.pay_account_id });
+    for (const date of debtDates(d, today, limit)) raw.push({ date, concept: d.name, amount: -conv(Number(d.monthly_amount), cur, fx), cur, original: -Number(d.monthly_amount) });
+  }
 
   for (const s of subs) {
     const acc = accounts.find((a) => a.id === s.pay_account_id);
     if (acc?.kind === "credito") continue; // charged on the card; shows up in the card payment once registered
-    for (const date of subDates(s, today, limit)) raw.push({ date, concept: `Suscripción ${s.name}`, amount: -Number(s.amount) });
+    const cur = asCur(s.currency);
+    for (const date of subDates(s, today, limit)) raw.push({ date, concept: `Suscripción ${s.name}`, amount: -conv(Number(s.amount), cur, fx), cur, original: -Number(s.amount) });
   }
   const events = raw
     .filter((e) => e.date > today && e.date <= limit && e.amount !== 0)
@@ -273,6 +312,7 @@ export type Subscription = {
   category: string;
   pay_account_id: string | null;
   active: boolean;
+  currency?: Cur;
 };
 
 /** Charge dates of a subscription strictly after `from` and up to `to`. */

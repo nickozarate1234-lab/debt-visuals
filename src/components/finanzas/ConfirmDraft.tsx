@@ -5,7 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { IO_CATEGORIES, todayStr, type Account } from "@/lib/finance";
+import { CUR_SYMBOL, CURRENCIES, IO_CATEGORIES, asCur, conv, money, todayStr, type Account } from "@/lib/finance";
+import { useFx } from "@/hooks/use-fx";
 import type { VoiceParse } from "@/lib/voice.functions";
 import { cn } from "@/lib/utils";
 import { isLimitError, openPaywall } from "@/lib/plans";
@@ -30,14 +31,19 @@ export function ConfirmDraft({
   const upd = (p: Partial<VoiceParse>) => setDraft((d) => (d ? { ...d, ...p } : d));
   const acc = accounts.find((a) => a.id === draft?.cuenta);
   const isCard = acc?.kind === "credito";
+  const { fx } = useFx();
+  // Said or printed in one currency, saved in the account's: converted with the rate in use.
+  const accCurr = asCur(acc?.currency);
+  const said = asCur(draft?.moneda);
+  const amount = draft ? (said === accCurr ? draft.monto : Math.round(conv(draft.monto, said, fx, accCurr) * 100) / 100) : 0;
 
   const save = async () => {
     if (!draft || !acc) return;
     setSaving(true);
     const fecha = draft.fecha ?? todayStr();
     const { error } = isCard
-      ? await supabase.from("io_expenses").insert({ user_id: userId, account_id: acc.id, date: fecha, description: draft.descripcion.slice(0, 200), category: draft.categoria, amount: draft.monto, source })
-      : await supabase.from("bcp_movements").insert({ user_id: userId, account_id: acc.id, date: fecha, concept: draft.descripcion.slice(0, 200), amount: draft.movimiento === "ingreso" ? draft.monto : -draft.monto, source });
+      ? await supabase.from("io_expenses").insert({ user_id: userId, account_id: acc.id, date: fecha, description: draft.descripcion.slice(0, 200), category: draft.categoria, amount, source })
+      : await supabase.from("bcp_movements").insert({ user_id: userId, account_id: acc.id, date: fecha, concept: draft.descripcion.slice(0, 200), amount: draft.movimiento === "ingreso" ? amount : -amount, source });
     setSaving(false);
     if (isLimitError(error)) { toast.error("Llegaste a tus registros gratis"); setDraft(null); openPaywall(); return; }
     if (error) { toast.error(error.message); return; }
@@ -77,7 +83,21 @@ export function ConfirmDraft({
                 ))}
               </div>
             )}
-            <Input type="number" step="0.01" value={draft.monto} onChange={(e) => upd({ monto: Number(e.target.value) })} className="h-12 text-lg num" />
+            <div className="flex gap-2">
+              <div className="grid shrink-0 grid-cols-2 gap-1 rounded-xl bg-muted p-1">
+                {CURRENCIES.map((c) => (
+                  <button key={c} type="button" onClick={() => upd({ moneda: c })} className={cn("num rounded-lg px-2.5 text-sm font-semibold", said === c ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
+                    {CUR_SYMBOL[c]}
+                  </button>
+                ))}
+              </div>
+              <Input type="number" step="0.01" value={draft.monto} onChange={(e) => upd({ monto: Number(e.target.value) })} className="h-12 text-lg num" />
+            </div>
+            {acc && said !== accCurr && draft.monto > 0 && (
+              <p className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                {acc.name} está en {CUR_SYMBOL[accCurr]}: se registrará como <span className="num font-semibold text-foreground">{money(amount, false, accCurr)}</span> (TC {fx.rate.toFixed(4)}).
+              </p>
+            )}
             <Input value={draft.descripcion} onChange={(e) => upd({ descripcion: e.target.value })} className="h-11" />
             {isCard && (
               <div className="flex flex-wrap gap-2">

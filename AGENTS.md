@@ -5,3 +5,4 @@
 - `scripts/import-backup.sh` replaces all app data and users with a pg_dump backup. It is destructive: only run it when the user asks.
 - Demo mode (`/?demo=true`) renders the app from in-memory data in src/lib/demo-data.ts and never reads or writes the database — keeps real data private for marketing/AI recording.
 - Card math lives in `src/lib/finance.ts` (statements, cuotas schedule, credit line, projection) with tests in `src/lib/finance.test.ts`.
+- Currencies: soles (PEN) and dollars (USD). Each account, salary and subscription has its own currency; totals, the projection and the traffic light are in the user's main currency (`profiles.currency`), converted with `conv()` in `src/lib/finance.ts`. The automatic USD→PEN rate comes from `getUsdRate` (`src/lib/fx.functions.ts`, cached daily in `fx_rates`); `profiles.usd_rate` overrides it. Demo: `/?demo=true&moneda=USD` previews dollars as main currency, `&bienvenida=1` shows the welcome step.

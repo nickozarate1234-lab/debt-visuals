@@ -50,6 +50,13 @@
       "when": 1795062787802,
       "tag": "0006_seguridad_ia",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795150000000,
+      "tag": "0007_monedas",
+      "breakpoints": true
     }
   ]
 }

@@ -10,6 +10,8 @@ export type Movement = {
   cuenta: string;
   movimiento: "egreso" | "ingreso";
   monto: number;
+  /** Currency of `monto` as said or printed (the account may be in another one). */
+  moneda: "PEN" | "USD";
   descripcion: string;
   categoria: string;
   fecha: string | null;
@@ -22,12 +24,13 @@ const schema = (accountIds: string[]) => ({
     cuenta: { type: "string", enum: accountIds },
     movimiento: { type: "string", enum: ["egreso", "ingreso"] },
     monto: { type: "number" },
+    moneda: { type: "string", enum: ["PEN", "USD"] },
     descripcion: { type: "string" },
     categoria: { type: "string", enum: CATS },
     fecha: { type: "string", description: "YYYY-MM-DD o cadena vacía si no se sabe" },
   },
-  required: ["transcript", "cuenta", "movimiento", "monto", "descripcion", "categoria", "fecha"],
-  propertyOrdering: ["transcript", "cuenta", "movimiento", "monto", "descripcion", "categoria", "fecha"],
+  required: ["transcript", "cuenta", "movimiento", "monto", "moneda", "descripcion", "categoria", "fecha"],
+  propertyOrdering: ["transcript", "cuenta", "movimiento", "monto", "moneda", "descripcion", "categoria", "fecha"],
 });
 
 // Tried in order; the next one is used when a model is overloaded or unavailable.
@@ -70,7 +73,7 @@ export async function extractMovement(opts: { instructions: string; prompt: stri
   if (!res) throw lastErr;
   const p = JSON.parse(res.text ?? "{}") as Omit<Movement, "fecha"> & { fecha?: string | null };
   const fecha = p.fecha && /^\d{4}-\d{2}-\d{2}$/.test(p.fecha) ? p.fecha : null;
-  return { ...p, transcript: (p.transcript ?? "").trim(), monto: Number(p.monto) || 0, fecha };
+  return { ...p, transcript: (p.transcript ?? "").trim(), monto: Number(p.monto) || 0, moneda: p.moneda === "USD" ? "USD" : "PEN", fecha };
 }
 
 /** Takes one AI use for this user (daily cap: free 10, Pro 60, plus a global cap). Returns an error message when over. */

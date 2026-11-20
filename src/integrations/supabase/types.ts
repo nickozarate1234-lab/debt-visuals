@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       accounts: {
         Row: {
+          currency: string
           archived: boolean
           created_at: string
           credit_limit: number | null
@@ -28,6 +29,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          currency?: string
           archived?: boolean
           created_at?: string
           credit_limit?: number | null
@@ -40,6 +42,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          currency?: string
           archived?: boolean
           created_at?: string
           credit_limit?: number | null
@@ -55,6 +58,7 @@ export type Database = {
       }
       bcp_movements: {
         Row: {
+          card_amount: number | null
           account_id: string | null
           amount: number
           concept: string
@@ -68,6 +72,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          card_amount?: number | null
           account_id?: string | null
           amount: number
           concept: string
@@ -81,6 +86,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          card_amount?: number | null
           account_id?: string | null
           amount?: number
           concept?: string
@@ -128,6 +134,27 @@ export type Database = {
           pay_day?: number
           start_date?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      fx_rates: {
+        Row: {
+          fetched_at: string
+          pair: string
+          rate: number
+          source: string
+        }
+        Insert: {
+          fetched_at?: string
+          pair: string
+          rate: number
+          source: string
+        }
+        Update: {
+          fetched_at?: string
+          pair?: string
+          rate?: number
+          source?: string
         }
         Relationships: []
       }
@@ -208,6 +235,11 @@ export type Database = {
       }
       profiles: {
         Row: {
+          currency: string
+          currency_set: boolean
+          usd_rate: number | null
+          mesada1_currency: string
+          mesada2_currency: string
           bbva_amount: number
           bbva_date: string | null
           created_at: string
@@ -224,6 +256,11 @@ export type Database = {
           yape_day: number
         }
         Insert: {
+          currency?: string
+          currency_set?: boolean
+          usd_rate?: number | null
+          mesada1_currency?: string
+          mesada2_currency?: string
           bbva_amount?: number
           bbva_date?: string | null
           created_at?: string
@@ -240,6 +277,11 @@ export type Database = {
           yape_day?: number
         }
         Update: {
+          currency?: string
+          currency_set?: boolean
+          usd_rate?: number | null
+          mesada1_currency?: string
+          mesada2_currency?: string
           bbva_amount?: number
           bbva_date?: string | null
           created_at?: string
@@ -259,6 +301,7 @@ export type Database = {
       }
       subscriptions: {
         Row: {
+          currency: string
           active: boolean
           amount: number
           category: string
@@ -272,6 +315,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          currency?: string
           active?: boolean
           amount: number
           category?: string
@@ -285,6 +329,7 @@ export type Database = {
           user_id?: string
         }
         Update: {
+          currency?: string
           active?: boolean
           amount?: number
           category?: string

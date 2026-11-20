@@ -30,7 +30,7 @@ async function compress(file: File): Promise<string> {
 }
 
 export function VoucherButton({ userId, accounts }: { userId: string; accounts: Account[] }) {
-  const refs = accounts.map(({ id, name, kind, legacy }) => ({ id, name, kind, legacy }));
+  const refs = accounts.map(({ id, name, kind, legacy, currency }) => ({ id, name, kind, legacy, currency }));
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<VoiceParse | null>(null);
   const input = useRef<HTMLInputElement>(null);

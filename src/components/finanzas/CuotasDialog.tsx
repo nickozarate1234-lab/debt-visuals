@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cuotaRate, cycle, fmtDate, installmentDueDates, ioPayDate, money, type Account, type IoExpense, type Profile } from "@/lib/finance";
+import { CUR_SYMBOL, asCur, cuotaRate, cycle, fmtDate, installmentDueDates, ioPayDate, money, type Account, type IoExpense, type Profile } from "@/lib/finance";
 import { cn } from "@/lib/utils";
 
 const COMMON = [2, 3, 6, 12, 18, 24, 36];
@@ -28,6 +28,7 @@ export function CuotasDialog({ expense, card, onClose }: { expense: IoExpense | 
 
 function Form({ expense, card, onClose }: { expense: IoExpense; card: Account; onClose: () => void }) {
   const statement = ioPayDate(expense.date, cycle(card) as Profile);
+  const cur = asCur(card.currency);
   const [amount, setAmount] = useState(String(Number(expense.amount)));
   const [n, setN] = useState("3");
   const [cuota, setCuota] = useState("");
@@ -51,7 +52,7 @@ function Form({ expense, card, onClose }: { expense: IoExpense; card: Account; o
       toast.error(error.message);
       return;
     }
-    toast.success(`${expense.description} pasó a ${k} cuotas de ${money(m)}`);
+    toast.success(`${expense.description} pasó a ${k} cuotas de ${money(m, false, cur)}`);
     financeChanged();
     onClose();
   };
@@ -66,7 +67,7 @@ function Form({ expense, card, onClose }: { expense: IoExpense; card: Account; o
       </div>
 
       <div className="space-y-1.5">
-        <Label>Monto de la compra (S/)</Label>
+        <Label>Monto de la compra ({CUR_SYMBOL[cur]})</Label>
         <Input inputMode="decimal" type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-11 num" />
       </div>
 
@@ -83,7 +84,7 @@ function Form({ expense, card, onClose }: { expense: IoExpense; card: Account; o
       </div>
 
       <div className="space-y-1.5">
-        <Label>Pago por cuota (S/)</Label>
+        <Label>Pago por cuota ({CUR_SYMBOL[cur]})</Label>
         <Input inputMode="decimal" type="number" step="0.01" value={cuota} onChange={(e) => setCuota(e.target.value)} placeholder={a > 0 && k > 0 ? `${(a / k).toFixed(2)} si es sin intereses` : ""} className="h-11 num" />
         <p className="text-xs text-muted-foreground">El monto de cada cuota que te muestra el banco.</p>
       </div>
@@ -96,13 +97,13 @@ function Form({ expense, card, onClose }: { expense: IoExpense; card: Account; o
 
       {valid && rate && (
         <div className="space-y-1.5 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">
-          <Line l="Sale del pago del" r={`${fmtDate(statement)} · −${money(a)}`} />
-          <Line l="Total a pagar" r={`${k} × ${money(m)} = ${money(rate.total)}`} />
-          <Line l="Intereses" r={rate.interest > 0.005 ? `${money(rate.interest)} (${pct(rate.interest / a)} de la compra)` : "Sin intereses"} strong={rate.interest > 0.005} />
+          <Line l="Sale del pago del" r={`${fmtDate(statement)} · −${money(a, false, cur)}`} />
+          <Line l="Total a pagar" r={`${k} × ${money(m, false, cur)} = ${money(rate.total, false, cur)}`} />
+          <Line l="Intereses" r={rate.interest > 0.005 ? `${money(rate.interest, false, cur)} (${pct(rate.interest / a)} de la compra)` : "Sin intereses"} strong={rate.interest > 0.005} />
           {rate.tem > 0 && <Line l="Tasa estimada" r={`TEM ${pct(rate.tem)} · TEA ${pct(rate.tea)}`} />}
           <Line l="Cuotas" r={`${fmtDate(due[0] ?? null)} → ${fmtDate(due.at(-1) ?? null)}`} />
           <p className="pt-1 text-xs text-muted-foreground">
-            Los {money(a)} pasan a ser crédito usado de tu línea y cada cuota pagada libera su parte de capital.
+            Los {money(a, false, cur)} pasan a ser crédito usado de tu línea y cada cuota pagada libera su parte de capital.
           </p>
         </div>
       )}

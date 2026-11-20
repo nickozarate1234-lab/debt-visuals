@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 type State = "idle" | "rec" | "busy";
 
 export function VoiceButton({ userId, accounts }: { userId: string; accounts: Account[] }) {
-  const refs = accounts.map(({ id, name, kind, legacy }) => ({ id, name, kind, legacy }));
+  const refs = accounts.map(({ id, name, kind, legacy, currency }) => ({ id, name, kind, legacy, currency }));
   const [state, setState] = useState<State>("idle");
   const [draft, setDraft] = useState<VoiceParse | null>(null);
   const rec = useRef<MediaRecorder | null>(null);

@@ -25,7 +25,7 @@ export const parseVoucher = createServerFn({ method: "POST" })
         accountIds: data.accounts.map((a) => a.id),
         prompt: "Extrae el movimiento de este comprobante.",
         instructions: `Lees comprobantes de pago peruanos: boletas/facturas SUNAT, vouchers POS (Niubiz, Izipay), capturas de Yape, Plin, BCP Móvil. Hoy es ${data.today} (Lima).
-REGLA CLAVE: en Perú el IGV ya está incluido. IGNORA subtotal, op. gravada e IGV. monto = TOTAL / IMPORTE TOTAL / monto pagado final (incluye propina si aparece en el total). Número positivo en soles.
+REGLA CLAVE: en Perú el IGV ya está incluido. IGNORA subtotal, op. gravada e IGV. monto = TOTAL / IMPORTE TOTAL / monto pagado final (incluye propina si aparece en el total). Número positivo, en la moneda del comprobante (S/ o US$).
 ${accountsGuide(data.accounts, "voucher")}
 movimiento: "ingreso" solo si la captura muestra que RECIBIÓ dinero; si no, "egreso". Con tarjeta de crédito siempre "egreso".
 descripcion: nombre corto del comercio o destinatario con mayúscula inicial (ej. "Tambo", "Antica Pizzería", "Yape a Juan").

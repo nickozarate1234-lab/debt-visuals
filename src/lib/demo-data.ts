@@ -25,16 +25,24 @@ export function buildDemoData() {
     bbva_date: null,
     bbva_amount: 0,
     projection_months: 6,
+    currency: "PEN",
+    currency_set: true,
+    usd_rate: null,
+    mesada1_currency: "PEN",
+    mesada2_currency: "PEN",
   };
   const accounts: Account[] = [
     { id: "d-bcp", name: "BCP Sueldo", kind: "debito", legacy: "bcp", cut_day: 0, pay_day: 0, archived: false },
     { id: "d-ibk", name: "Interbank Ahorro", kind: "debito", legacy: null, cut_day: 0, pay_day: 0, archived: false },
     { id: "d-io", name: "iO Visa", kind: "credito", legacy: "io", cut_day: 25, pay_day: 12, archived: false, credit_limit: 3000 },
     { id: "d-bbva", name: "BBVA Signature", kind: "credito", legacy: null, cut_day: 5, pay_day: 28, archived: false, credit_limit: 8000 },
+    { id: "d-usd", name: "BCP Dólares", kind: "debito", legacy: null, cut_day: 0, pay_day: 0, archived: false, currency: "USD" },
+    { id: "d-amz", name: "Interbank Visa $", kind: "credito", legacy: null, cut_day: 10, pay_day: 5, archived: false, credit_limit: 1500, currency: "USD" },
   ];
   const mv: [number, string, number, string][] = [
     [-60, "Saldo inicial", 5200, "d-bcp"],
     [-60, "Saldo inicial", 8500, "d-ibk"],
+    [-50, "Ahorro en dólares", 650, "d-usd"],
     [-46, "Sueldo", 3200, "d-bcp"],
     [-40, "Alquiler depa", -1400, "d-bcp"],
     [-31, "Sueldo", 3200, "d-bcp"],
@@ -44,7 +52,9 @@ export function buildDemoData() {
     [-16, "Sueldo", 3200, "d-bcp"],
     [-14, "Pago iO Visa", -890, "d-bcp"],
     [-10, "Alquiler depa", -1400, "d-bcp"],
+    [-9, "Pago freelance (Upwork)", 180, "d-usd"],
     [-6, "Yape a Diego (cena)", -45, "d-bcp"],
+    [-4, "Claude Pro", -20, "d-usd"],
     [-3, "Dividendos fondo", 320, "d-ibk"],
     [-1, "Sueldo", 3200, "d-bcp"],
   ];
@@ -62,6 +72,8 @@ export function buildDemoData() {
     [-13, "Inkafarma", "Salud", 36.8, "d-io"],
     [-15, "Rappi sushi", "Comida", 64, "d-io"],
     [-18, "Cabify aeropuerto", "Transporte", 42, "d-io"],
+    [-4, "Amazon (audífonos)", "Otros", 45, "d-amz"],
+    [-12, "Steam", "Entretenimiento", 19.99, "d-amz"],
   ];
   const io: IoExpense[] = ex.map(([d, description, category, amount, account_id], i) => ({
     id: `d-e${i}`, date: shift(d), description, category, amount, account_id,
@@ -78,6 +90,7 @@ export function buildDemoData() {
     { id: "d-s2", name: "Netflix", amount: 44.9, cycle: "mensual", charge_day: 8, charge_month: null, category: "Suscripciones", pay_account_id: "d-io", active: true },
     { id: "d-s3", name: "ChatGPT Plus", amount: 75, cycle: "mensual", charge_day: 3, charge_month: null, category: "Suscripciones", pay_account_id: "d-bbva", active: true },
     { id: "d-s4", name: "iCloud+ 200GB", amount: 11.9, cycle: "mensual", charge_day: 17, charge_month: null, category: "Suscripciones", pay_account_id: "d-bcp", active: true },
+    { id: "d-s5", name: "Claude Pro", amount: 20, cycle: "mensual", charge_day: 16, charge_month: null, category: "Suscripciones", pay_account_id: "d-usd", active: true, currency: "USD" },
   ];
   return { profile, bcp, io, cuotas, accounts, debts, subs };
 }

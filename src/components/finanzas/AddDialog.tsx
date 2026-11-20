@@ -6,7 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { IO_CATEGORIES, fmtDate, nextPayDate, todayStr, type Account } from "@/lib/finance";
+import { CUR_SYMBOL, IO_CATEGORIES, asCur, conv, fmtDate, nextPayDate, todayStr, type Account } from "@/lib/finance";
+import { useFx } from "@/hooks/use-fx";
 import { cn } from "@/lib/utils";
 import { isLimitError, openPaywall } from "@/lib/plans";
 
@@ -58,7 +59,14 @@ export function AddDialog({
   const card = cards.find((c) => c.id === cId);
   const destOptions = accounts.filter((a) => !a.archived && a.id !== dId);
   const tId = toId && toId !== dId ? toId : destOptions[0]?.id || "";
+  const fromAcc = accounts.find((x) => x.id === dId);
+  const destAcc = accounts.find((x) => x.id === tId);
+  const sym = CUR_SYMBOL[asCur((kind === "io" || kind === "cuota" ? card : fromAcc)?.currency)];
+  const cross = kind === "traspaso" && !!fromAcc && !!destAcc && asCur(fromAcc.currency) !== asCur(destAcc.currency);
   const [amount, setAmount] = useState("");
+  // Transfer between currencies: what arrives at the destination (blank = converted with the rate in use).
+  const [arrive, setArrive] = useState("");
+  const { fx } = useFx();
   const [desc, setDesc] = useState("");
   const [date, setDate] = useState(todayStr());
   const [noDate, setNoDate] = useState(false);
@@ -70,6 +78,7 @@ export function AddDialog({
 
   const reset = () => {
     setAmount("");
+    setArrive("");
     setDesc("");
     setMonthly("");
     setDate(todayStr());
@@ -99,16 +108,20 @@ export function AddDialog({
       if (!dest || !from) { setBusy(false); toast.error("Elige origen y destino"); return; }
       const v = Math.abs(a);
       const note = desc.trim().slice(0, 150);
+      const fromCur = asCur(from.currency);
+      const destCur = asCur(dest.currency);
+      const got = fromCur === destCur ? v : Math.abs(Number(arrive)) || Math.round(conv(v, fromCur, fx, destCur) * 100) / 100;
       if (dest.kind === "credito") {
         ({ error } = await supabase.from("bcp_movements").insert({
           user_id: userId, account_id: from.id, paid_card_id: dest.id, date,
           concept: note || `Pago tarjeta ${dest.name}`, amount: -v, source: "pago_tarjeta",
+          ...(fromCur === destCur ? {} : { card_amount: got }),
         }));
       } else {
         const tid = crypto.randomUUID();
         ({ error } = await supabase.from("bcp_movements").insert([
           { user_id: userId, account_id: from.id, transfer_id: tid, date, concept: note || `Traspaso a ${dest.name}`, amount: -v, source: "traspaso" },
-          { user_id: userId, account_id: dest.id, transfer_id: tid, date, concept: note || `Traspaso desde ${from.name}`, amount: v, source: "traspaso" },
+          { user_id: userId, account_id: dest.id, transfer_id: tid, date, concept: note || `Traspaso desde ${from.name}`, amount: got, source: "traspaso" },
         ]));
       }
     } else if (kind === "deuda") {
@@ -182,9 +195,24 @@ export function AddDialog({
             <Seg value={dir} onChange={setDir} options={[{ v: "egreso", l: "Egreso" }, { v: "ingreso", l: "Ingreso" }]} />
           )}
           <div className="space-y-1.5">
-            <Label>{kind === "cuota" ? "Monto original" : kind === "deuda" ? "Cuota mensual (S/)" : "Monto (S/)"}</Label>
+            <Label>{kind === "cuota" ? `Monto original (${sym})` : kind === "deuda" ? `Cuota mensual (${sym})` : `Monto (${sym})`}</Label>
             <Input inputMode="decimal" type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-12 text-lg num" autoFocus />
           </div>
+          {cross && fromAcc && destAcc && (
+            <div className="space-y-1.5 rounded-2xl border border-primary/20 bg-primary/5 p-3">
+              <Label>{destAcc.kind === "credito" ? `Se abona a ${destAcc.name}` : `Llega a ${destAcc.name}`} ({CUR_SYMBOL[asCur(destAcc.currency)]})</Label>
+              <Input
+                inputMode="decimal"
+                type="number"
+                step="0.01"
+                value={arrive}
+                onChange={(e) => setArrive(e.target.value)}
+                placeholder={Number(amount) ? (Math.round(conv(Math.abs(Number(amount)), asCur(fromAcc.currency), fx, asCur(destAcc.currency)) * 100) / 100).toFixed(2) : "0.00"}
+                className="h-11 num"
+              />
+              <p className="text-xs text-muted-foreground">Calculado con tu tipo de cambio ({fx.rate.toFixed(4)}). Corrígelo si tu banco usó otro.</p>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label>{kind === "deuda" ? "Nombre de la deuda" : kind === "traspaso" ? "Nota (opcional)" : "Descripción"}</Label>
             <Input value={desc} onChange={(e) => setDesc(e.target.value)} maxLength={200} className="h-11" />
@@ -257,6 +285,7 @@ function Picker({ label, value, onChange, list }: { label: string; value: string
           <button key={a.id} type="button" onClick={() => onChange(a.id)} className={cn("rounded-full border px-3 py-1.5 text-sm", value === a.id ? "border-primary bg-primary/15 text-primary" : "text-muted-foreground")}>
             {a.name}
             {a.kind === "credito" ? " · tarjeta" : ""}
+            {asCur(a.currency) === "USD" ? " · US$" : ""}
           </button>
         ))}
       </div>

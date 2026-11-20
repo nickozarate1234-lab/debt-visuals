@@ -8,14 +8,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { daysUntil, fmtDate, money, nextCharge, subMonthly, type Account, type Subscription } from "@/lib/finance";
+import { CUR_SYMBOL, asCur, conv, daysUntil, fmtDate, money, nextCharge, subMonthly, type Account, type Cur, type Subscription } from "@/lib/finance";
+import { useFx } from "@/hooks/use-fx";
+import { CurrencyPicker } from "./CurrencyPicker";
 import { cn } from "@/lib/utils";
 
 const MONTHS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Set", "Oct", "Nov", "Dic"];
 
 export function SubscriptionsView({ subs, accounts, userId }: { subs: Subscription[]; accounts: Account[]; userId: string }) {
   const [open, setOpen] = useState(false);
-  const monthly = subs.reduce((s, x) => s + subMonthly(x), 0);
+  const { fx } = useFx();
+  // Each subscription has its own currency; the monthly total is in the main currency.
+  const monthly = subs.reduce((s, x) => s + conv(subMonthly(x), asCur(x.currency), fx), 0);
+  const usdCount = subs.filter((x) => x.active && asCur(x.currency) !== fx.main).length;
   const upcoming = subs
     .map((s) => ({ s, d: nextCharge(s) }))
     .filter((x): x is { s: Subscription; d: string } => !!x.d)
@@ -40,11 +45,12 @@ export function SubscriptionsView({ subs, accounts, userId }: { subs: Subscripti
       <div className="glass glass-glow rounded-3xl p-5">
         <div className="text-xs tracking-wide text-muted-foreground uppercase">Cobros automáticos</div>
         <div className="mt-1 flex items-baseline gap-2">
-          <span className="num font-display text-3xl font-bold">{money(monthly)}</span>
+          <span className="num font-display text-3xl font-bold">{money(monthly, false, fx.main)}</span>
           <span className="text-sm text-muted-foreground">/ mes</span>
         </div>
         <div className="mt-1 text-sm text-muted-foreground">
-          <span className="num">{money(monthly * 12)}</span> al año · {subs.filter((s) => s.active).length} activas
+          <span className="num">{money(monthly * 12, false, fx.main)}</span> al año · {subs.filter((s) => s.active).length} activas
+          {usdCount > 0 && <span> · {usdCount} en otra moneda, convertidas a {fx.rate.toFixed(2)}</span>}
         </div>
         {next && (
           <div className="mt-4 flex items-center gap-3 rounded-2xl glass-inset px-4 py-3">
@@ -53,7 +59,7 @@ export function SubscriptionsView({ subs, accounts, userId }: { subs: Subscripti
               <span className="font-semibold">{next.s.name}</span> te cobra{" "}
               {daysUntil(next.d) === 0 ? "hoy" : daysUntil(next.d) === 1 ? "mañana" : `en ${daysUntil(next.d)} días`}
             </div>
-            <span className="num text-sm font-semibold text-expense">-{money(next.s.amount)}</span>
+            <span className="num text-sm font-semibold text-expense">-{money(next.s.amount, false, asCur(next.s.currency))}</span>
           </div>
         )}
       </div>
@@ -86,7 +92,10 @@ export function SubscriptionsView({ subs, accounts, userId }: { subs: Subscripti
                   {d && s.active ? ` · ${fmtDate(d)}` : ""}
                 </div>
               </div>
-              <div className="num text-right font-semibold text-expense">-{money(s.amount)}</div>
+              <div className="num text-right font-semibold text-expense">
+                -{money(s.amount, false, asCur(s.currency))}
+                {asCur(s.currency) !== fx.main && <div className="text-[11px] font-normal text-muted-foreground">≈ {money(conv(s.amount, asCur(s.currency), fx), false, fx.main)}</div>}
+              </div>
               <div className="flex flex-col items-center gap-2">
                 <Switch checked={s.active} onCheckedChange={(v) => toggle(s, v)} aria-label="Activa" />
                 <button onClick={() => remove(s)} aria-label="Eliminar" className="text-muted-foreground/60 hover:text-destructive">
@@ -97,12 +106,13 @@ export function SubscriptionsView({ subs, accounts, userId }: { subs: Subscripti
           );
         })}
       </div>
-      <SubDialog open={open} onOpenChange={setOpen} accounts={accounts} userId={userId} />
+      <SubDialog open={open} onOpenChange={setOpen} accounts={accounts} userId={userId} mainCur={fx.main} />
     </>
   );
 }
 
-function SubDialog({ open, onOpenChange, accounts, userId }: { open: boolean; onOpenChange: (v: boolean) => void; accounts: Account[]; userId: string }) {
+function SubDialog({ open, onOpenChange, accounts, userId, mainCur }: { open: boolean; onOpenChange: (v: boolean) => void; accounts: Account[]; userId: string; mainCur: Cur }) {
+  const [cur, setCur] = useState<Cur>(mainCur);
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [cycle, setCycle] = useState<"mensual" | "anual">("mensual");
@@ -127,6 +137,7 @@ function SubDialog({ open, onOpenChange, accounts, userId }: { open: boolean; on
       charge_day: Math.min(31, Math.max(1, Number(day) || 1)),
       charge_month: cycle === "anual" ? Number(month) : null,
       pay_account_id: acc || null,
+      currency: cur,
     });
     setSaving(false);
     if (error) {
@@ -153,13 +164,17 @@ function SubDialog({ open, onOpenChange, accounts, userId }: { open: boolean; on
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
-              <Label>Monto (S/)</Label>
+              <Label>Monto ({CUR_SYMBOL[cur]})</Label>
               <Input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="12.00" />
             </div>
             <div className="grid gap-1.5">
               <Label>Día de cobro</Label>
               <Input inputMode="numeric" value={day} onChange={(e) => setDay(e.target.value)} />
             </div>
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Moneda del cobro</Label>
+            <CurrencyPicker value={cur} onChange={setCur} />
           </div>
           <div className="grid grid-cols-2 gap-2">
             {(["mensual", "anual"] as const).map((c) => (

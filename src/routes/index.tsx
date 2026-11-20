@@ -7,6 +7,8 @@ import { CuotasDialog } from "@/components/finanzas/CuotasDialog";
 import { PlanBanner, PlanSheet, usePlan } from "@/components/finanzas/PlanSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { financeChanged, useFinanceData, useSession } from "@/hooks/use-finance";
+import { FxContext, useAutoRate, useFx } from "@/hooks/use-fx";
+import { CurrencyWelcome } from "@/components/finanzas/CurrencyWelcome";
 import { AuthScreen } from "@/components/finanzas/AuthScreen";
 import { AddDialog, type AddKind } from "@/components/finanzas/AddDialog";
 import { VoiceButton } from "@/components/finanzas/VoiceButton";
@@ -32,6 +34,11 @@ import {
   ioPayDate,
   ioPaymentOn,
   money,
+  accCur,
+  asCur,
+  conv,
+  fxFromProfile,
+  type Cur,
   project,
   todayStr,
   withBalances,
@@ -75,9 +82,15 @@ function Index() {
   return <App userId={session.user.id} />;
 }
 
-const Amount = ({ n, className }: { n: number; className?: string }) => (
-  <span className={cn("num font-semibold", n >= 0 ? "text-income" : "text-expense", className)}>{money(n, true)}</span>
+const Amount = ({ n, cur = "PEN", className }: { n: number; cur?: Cur; className?: string }) => (
+  <span className={cn("num font-semibold", n >= 0 ? "text-income" : "text-expense", className)}>{money(n, true, cur)}</span>
 );
+/** "≈ S/ 154.35" under an amount in another currency than the main one. */
+function Approx({ n, cur, className }: { n: number; cur: Cur; className?: string }) {
+  const { fx } = useFx();
+  if (cur === fx.main) return null;
+  return <div className={cn("num text-[11px] font-normal text-muted-foreground", className)}>≈ {money(conv(n, cur, fx), false, fx.main)}</div>;
+}
 
 const Card = ({ children, className }: { children: React.ReactNode; className?: string }) => (
   <div className={cn("glass rounded-3xl", className)}>{children}</div>
@@ -122,6 +135,10 @@ function App({ userId, demo = false }: { userId: string; demo?: boolean }) {
   const [settings, setSettings] = useState(false);
   const activeAccounts = useMemo(() => accounts.filter((a) => !a.archived), [accounts]);
   const plan = usePlan(!demo);
+  const auto = useAutoRate();
+  const [welcomePreview, setWelcomePreview] = useState(false);
+  useEffect(() => setWelcomePreview(demo && new URLSearchParams(window.location.search).get("bienvenida") === "1"), [demo]);
+  const fxValue = useMemo(() => ({ fx: fxFromProfile(profile, auto.rate), auto }), [profile, auto]);
 
   const openAdd = () => {
     const hasCard = activeAccounts.some((a) => a.kind === "credito");
@@ -130,6 +147,7 @@ function App({ userId, demo = false }: { userId: string; demo?: boolean }) {
   };
 
   return (
+    <FxContext.Provider value={fxValue}>
     <div className="mx-auto flex min-h-screen max-w-xl flex-col">
       <header className="glass-bar sticky top-3 z-20 mx-3 mt-3 flex items-center justify-between rounded-full px-5 py-3">
         <h1 className="font-display text-xl font-bold">Mis Finanzas</h1>
@@ -179,7 +197,9 @@ function App({ userId, demo = false }: { userId: string; demo?: boolean }) {
       <VoiceButton userId={userId} accounts={activeAccounts} />
       {!demo && <PlanSheet plan={plan} />}
       {profile && <SettingsSheet open={settings} onOpenChange={setSettings} profile={profile} accounts={accounts} onSaved={reload} />}
+      {profile && (!demo || welcomePreview) && <CurrencyWelcome profile={profile} accounts={accounts} preview={demo} />}
     </div>
+    </FxContext.Provider>
   );
 }
 
@@ -200,16 +220,25 @@ function Chips({ value, onChange, options }: { value: string; onChange: (v: stri
 
 function Views({ tab, profile, bcp, io, cuotas, accounts, debts, subs, userId }: { tab: Tab; profile: Profile; userId: string } & Data) {
   const today = todayStr();
-  const proj = useMemo(() => project(profile, bcp, io, cuotas, today, accounts, debts, subs), [profile, bcp, io, cuotas, today, accounts, debts, subs]);
-  const bal = currentBalance(bcp);
+  const { fx } = useFx();
+  const main = fx.main;
+  const proj = useMemo(() => project(profile, bcp, io, cuotas, today, accounts, debts, subs, fx), [profile, bcp, io, cuotas, today, accounts, debts, subs, fx]);
+  const bal = proj.start;
+  const curOf = (r: { account_id?: string | null }) => accCur(accounts, debitOf(r, accounts));
+  const balOf = (a: Account) => currentBalance(bcp.filter((r) => debitOf(r, accounts) === a.id));
+  const foreign = accounts.filter((a) => a.kind === "debito" && !a.archived && asCur(a.currency) !== main);
+  const foreignTotal = foreign.reduce((s, a) => s + balOf(a), 0);
   const debits = accounts.filter((a) => a.kind === "debito");
   const cards = accounts.filter((a) => a.kind === "credito" && !a.archived);
   const nameOf = (id: string | null) => accounts.find((a) => a.id === id)?.name ?? "";
   const [acc, setAcc] = useState("all");
-  const rows = useMemo(
-    () => withBalances(acc === "all" ? bcp : bcp.filter((r) => debitOf(r, accounts) === acc)).reverse(),
-    [bcp, acc, accounts],
-  );
+  // "Todas" runs the balance in the main currency; one account runs it in its own currency.
+  const viewCur: Cur = acc === "all" ? main : accCur(accounts, acc);
+  const rows = useMemo(() => {
+    const list = acc === "all" ? bcp : bcp.filter((r) => debitOf(r, accounts) === acc);
+    const cur = (r: (typeof bcp)[number]) => accCur(accounts, debitOf(r, accounts));
+    return withBalances(list.map((r) => ({ ...r, native: Number(r.amount), cur: cur(r), amount: conv(Number(r.amount), cur(r), fx, viewCur) }))).reverse();
+  }, [bcp, acc, accounts, fx, viewCur]);
   const payDayOf = (c: { account_id?: string | null }) => accounts.find((a) => a.id === cardOf(c, accounts))?.pay_day;
   const active = cuotas.filter((c) => installmentActive(c, today, payDayOf(c)));
   const multi = debits.length > 1;
@@ -228,13 +257,22 @@ function Views({ tab, profile, bcp, io, cuotas, accounts, debts, subs, userId }:
       <>
         <div className="bg-hero rounded-3xl border p-6">
           <div className="text-sm text-muted-foreground">{multi ? "Liquidez total" : `Saldo ${debits[0]?.name ?? "BCP"} actual`}</div>
-          <div className={cn("num font-display mt-1 text-4xl font-bold", bal < 0 && "text-expense")}>{money(bal)}</div>
+          <div className={cn("num font-display mt-1 text-4xl font-bold", bal < 0 && "text-expense")}>{money(bal, false, main)}</div>
+          {foreign.length > 0 && foreignTotal !== 0 && (
+            <div className="num mt-1 text-xs text-muted-foreground">
+              Incluye {money(foreignTotal, false, asCur(foreign[0]!.currency))} ≈ {money(conv(foreignTotal, asCur(foreign[0]!.currency), fx), false, main)} · TC {fx.rate.toFixed(2)}
+            </div>
+          )}
           {multi && (
-            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+            <div className="mt-4 grid gap-2">
               {debits.filter((a) => !a.archived).map((a) => (
-                <span key={a.id}>
-                  {a.name} <span className="num text-foreground">{money(currentBalance(bcp.filter((r) => debitOf(r, accounts) === a.id)))}</span>
-                </span>
+                <div key={a.id} className="flex items-baseline justify-between rounded-2xl bg-background/30 px-4 py-2.5 text-sm">
+                  <span className="text-muted-foreground">{a.name}</span>
+                  <span className="text-right">
+                    <span className="num font-semibold text-foreground">{money(balOf(a), false, asCur(a.currency))}</span>
+                    <Approx n={balOf(a)} cur={asCur(a.currency)} />
+                  </span>
+                </div>
               ))}
             </div>
           )}
@@ -246,7 +284,7 @@ function Views({ tab, profile, bcp, io, cuotas, accounts, debts, subs, userId }:
               {ok ? "Cubierto los próximos 30 días" : "Vas a quedar en negativo en los próximos 30 días"}
             </div>
             <div className="text-sm text-muted-foreground">
-              Mínimo: <span className="num">{money(proj.min30.balance)}</span> el {fmtDate(proj.min30.date)}
+              Mínimo: <span className="num">{money(proj.min30.balance, false, main)}</span> el {fmtDate(proj.min30.date)}
             </div>
           </div>
         </Card>
@@ -254,17 +292,18 @@ function Views({ tab, profile, bcp, io, cuotas, accounts, debts, subs, userId }:
           {nextPays.map(({ c, date, pay }) => (
             <Card key={c.id} className="p-4">
               <div className="text-xs text-muted-foreground">Próximo pago {c.name}</div>
-              <div className="num font-display mt-1 text-xl font-bold text-expense">{money(pay.due)}</div>
+              <div className="num font-display mt-1 text-xl font-bold text-expense">{money(pay.due, false, asCur(c.currency))}</div>
+              <Approx n={pay.due} cur={asCur(c.currency)} className="text-left" />
               <div className="text-xs text-muted-foreground">{fmtDate(date)}</div>
               <div className="mt-1 text-[11px] text-muted-foreground num">
-                Gastos {money(pay.gastos)} · Cuotas {money(pay.cuotas)}
-                {pay.paid > 0 && ` · Pagado ${money(pay.paid)}`}
+                Gastos {money(pay.gastos, false, asCur(c.currency))} · Cuotas {money(pay.cuotas, false, asCur(c.currency))}
+                {pay.paid > 0 && ` · Pagado ${money(pay.paid, false, asCur(c.currency))}`}
               </div>
             </Card>
           ))}
           <Card className="p-4">
             <div className="text-xs text-muted-foreground">Mínimo en {profile.projection_months} meses</div>
-            <div className={cn("num font-display mt-1 text-xl font-bold", proj.min.balance < 0 ? "text-expense" : "text-income")}>{money(proj.min.balance)}</div>
+            <div className={cn("num font-display mt-1 text-xl font-bold", proj.min.balance < 0 ? "text-expense" : "text-income")}>{money(proj.min.balance, false, main)}</div>
             <div className="text-xs text-muted-foreground">{fmtDate(proj.min.date)}</div>
           </Card>
         </div>
@@ -286,7 +325,7 @@ function Views({ tab, profile, bcp, io, cuotas, accounts, debts, subs, userId }:
         <Card>
           <div className="px-4 pt-4 pb-1 text-xs text-muted-foreground">Últimos movimientos</div>
           {rows.slice(0, 6).map((r) => (
-            <Row key={r.id} title={r.concept} sub={`${fmtDate(r.date)}${multi ? ` · ${nameOf(debitOf(r, accounts))}` : ""}`} right={<Amount n={Number(r.amount)} />} />
+            <Row key={r.id} title={r.concept} sub={`${fmtDate(r.date)}${multi ? ` · ${nameOf(debitOf(r, accounts))}` : ""}`} right={<Amount n={r.native} cur={r.cur} />} />
           ))}
         </Card>
       </>
@@ -300,7 +339,8 @@ function Views({ tab, profile, bcp, io, cuotas, accounts, debts, subs, userId }:
         {acc !== "all" && (
           <Card className="p-4">
             <div className="text-xs text-muted-foreground">Saldo {nameOf(acc)}</div>
-            <div className="num font-display text-2xl font-bold">{money(rows[0]?.balance ?? 0)}</div>
+            <div className="num font-display text-2xl font-bold">{money(rows[0]?.balance ?? 0, false, viewCur)}</div>
+            <Approx n={rows[0]?.balance ?? 0} cur={viewCur} className="text-left text-xs" />
           </Card>
         )}
         <Card>
@@ -309,8 +349,8 @@ function Views({ tab, profile, bcp, io, cuotas, accounts, debts, subs, userId }:
             <Row
               key={r.id}
               title={r.concept}
-              sub={`${fmtDate(r.date)}${multi && acc === "all" ? ` · ${nameOf(debitOf(r, accounts))}` : ""} · Saldo: ${money(r.balance)}`}
-              right={<Amount n={Number(r.amount)} />}
+              sub={`${fmtDate(r.date)}${multi && acc === "all" ? ` · ${nameOf(debitOf(r, accounts))}` : ""} · Saldo: ${money(r.balance, false, viewCur)}`}
+              right={<Amount n={r.native} cur={r.cur} />}
               onDelete={() => del("bcp_movements", r.id, r.transfer_id)}
             />
           ))}
@@ -332,7 +372,7 @@ function Views({ tab, profile, bcp, io, cuotas, accounts, debts, subs, userId }:
             <Card key={d.id} className="p-4">
               <div className="flex items-center gap-2">
                 <div className="font-display flex-1 font-semibold">{d.name}</div>
-                <span className="num font-semibold text-expense">{money(-d.monthly_amount)}</span>
+                <span className="num font-semibold text-expense">{money(-d.monthly_amount, false, curOf({ account_id: d.pay_account_id }))}</span>
                 <button onClick={() => del("debts", d.id)} aria-label="Eliminar" className="text-muted-foreground/60 hover:text-destructive">
                   <Trash2 className="size-4" />
                 </button>
@@ -348,6 +388,7 @@ function Views({ tab, profile, bcp, io, cuotas, accounts, debts, subs, userId }:
         {cuotas.length === 0 && <div className="py-4 text-center text-sm text-muted-foreground">Sin cuotas registradas</div>}
         {cuotas.map((c) => {
           const total = c.monthly_amount * c.num_installments;
+          const cc = accCur(accounts, cardOf(c, accounts));
           const st = installmentStatus(c, payDayOf(c), today);
           const due = st.due;
           const on = st.remaining > 0;
@@ -364,13 +405,13 @@ function Views({ tab, profile, bcp, io, cuotas, accounts, debts, subs, userId }:
                 </button>
               </div>
               <div className="num mt-2 space-y-0.5 text-sm text-muted-foreground">
-                <div>Original: {money(c.original_amount)} · {c.num_installments} cuotas de {money(c.monthly_amount)}</div>
+                <div>Original: {money(c.original_amount, false, cc)} · {c.num_installments} cuotas de {money(c.monthly_amount, false, cc)}</div>
                 <div>1ra cuota: {fmtDate(due[0] ?? c.first_date)} · Última: {fmtDate(installmentLast(c, payDayOf(c)))}</div>
-                <div>Total a pagar: {money(total)} · Interés: {money(total - c.original_amount)}{st.rate && st.rate.tem > 0 ? ` · TEA ≈ ${(st.rate.tea * 100).toFixed(1)}%` : ""}</div>
+                <div>Total a pagar: {money(total, false, cc)} · Interés: {money(total - c.original_amount, false, cc)}{st.rate && st.rate.tem > 0 ? ` · TEA ≈ ${(st.rate.tea * 100).toFixed(1)}%` : ""}</div>
                 {c.purchase_date && <div>Compra: {fmtDate(c.purchase_date)}</div>}
                 {on && (
                   <div className="pt-1 text-foreground/90">
-                    {st.paid} de {st.due.length} pagadas · próxima {fmtDate(st.next)} · faltan {money(st.remainingAmount)} · usa {money(st.principal)} de tu línea
+                    {st.paid} de {st.due.length} pagadas · próxima {fmtDate(st.next)} · faltan {money(st.remainingAmount, false, cc)} · usa {money(st.principal, false, cc)} de tu línea
                   </div>
                 )}
                 {on && (
@@ -389,20 +430,20 @@ function Views({ tab, profile, bcp, io, cuotas, accounts, debts, subs, userId }:
     <>
       <Card className={cn("p-4", proj.min.balance < 0 ? "border-expense/40 bg-expense/10" : "border-income/30 bg-income/10")}>
         <div className={cn("text-sm font-semibold", proj.min.balance < 0 ? "text-expense" : "text-income")}>
-          Saldo mínimo proyectado: <span className="num">{money(proj.min.balance)}</span> el {fmtDate(proj.min.date)}
+          Saldo mínimo proyectado: <span className="num">{money(proj.min.balance, false, main)}</span> el {fmtDate(proj.min.date)}
         </div>
       </Card>
       <Card>
-        <Row title="Saldo actual (hoy)" sub={fmtDate(today)} right={<span className="num font-semibold">{money(proj.start)}</span>} />
+        <Row title="Saldo actual (hoy)" sub={fmtDate(today)} right={<span className="num font-semibold">{money(proj.start, false, main)}</span>} />
         {proj.events.map((e, i) => (
           <Row
             key={i}
             title={e.concept}
-            sub={fmtDate(e.date)}
+            sub={e.cur !== main ? `${fmtDate(e.date)} · ${money(e.original, false, e.cur)}` : fmtDate(e.date)}
             right={
               <div>
-                <Amount n={e.amount} />
-                <div className={cn("num text-xs", e.balance < 0 ? "text-expense" : "text-muted-foreground")}>{money(e.balance)}</div>
+                <Amount n={e.amount} cur={main} />
+                <div className={cn("num text-xs", e.balance < 0 ? "text-expense" : "text-muted-foreground")}>{money(e.balance, false, main)}</div>
               </div>
             }
           />
@@ -425,11 +466,12 @@ function CardsView({ cards, accounts, io, cuotas, bcp }: { cards: Account[] } & 
   const pay = sel ? cardPaymentOn(card, sel, accounts, io, cuotas, bcp, today) : null;
   const list = sel ? mine.filter((e) => ioPayDate(e.date, cycle(card)) === sel) : mine;
   const line = cardCreditUsed(card, accounts, io, cuotas, bcp, today);
+  const cc = asCur(card.currency);
 
   return (
     <>
       <Chips value={card.id} onChange={(v) => { setCardId(v); setSel(""); }} options={cards.map((c) => ({ v: c.id, l: c.name }))} />
-      <CreditLine name={card.name} line={line} />
+      <CreditLine name={card.name} line={line} cur={cc} />
       <div className="flex gap-2 overflow-x-auto pb-1">
         {payDates.map((d) => (
           <button key={d} onClick={() => setSel(d)} className={cn("shrink-0 rounded-full border px-3 py-1.5 text-sm", sel === d ? "border-primary bg-primary/15 text-primary" : "text-muted-foreground")}>
@@ -440,10 +482,11 @@ function CardsView({ cards, accounts, io, cuotas, bcp }: { cards: Account[] } & 
       {pay && (
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">{card.name} · total a pagar el {fmtDate(sel)}</div>
-          <div className="num font-display text-3xl font-bold text-expense">{money(pay.due)}</div>
+          <div className="num font-display text-3xl font-bold text-expense">{money(pay.due, false, cc)}</div>
+          <Approx n={pay.due} cur={cc} className="text-left text-xs" />
           <div className="num text-sm text-muted-foreground">
-            Gastos {money(pay.gastos)} · Cuotas {money(pay.cuotas)}
-            {pay.paid > 0 && ` · Ya pagado ${money(pay.paid)}`}
+            Gastos {money(pay.gastos, false, cc)} · Cuotas {money(pay.cuotas, false, cc)}
+            {pay.paid > 0 && ` · Ya pagado ${money(pay.paid, false, cc)}`}
           </div>
         </Card>
       )}
@@ -454,7 +497,7 @@ function CardsView({ cards, accounts, io, cuotas, bcp }: { cards: Account[] } & 
             key={e.id}
             title={e.description}
             sub={`${fmtDate(e.date)} · ${e.category} · paga el ${fmtDate(ioPayDate(e.date, cycle(card)))}`}
-            right={<Amount n={-Number(e.amount)} />}
+            right={<Amount n={-Number(e.amount)} cur={cc} />}
             onSplit={() => setToSplit(e)}
             onDelete={() => del("io_expenses", e.id)}
           />
@@ -465,11 +508,11 @@ function CardsView({ cards, accounts, io, cuotas, bcp }: { cards: Account[] } & 
   );
 }
 
-function CreditLine({ name, line }: { name: string; line: ReturnType<typeof cardCreditUsed> }) {
+function CreditLine({ name, line, cur }: { name: string; line: ReturnType<typeof cardCreditUsed>; cur: Cur }) {
   if (line.limit == null)
     return (
       <Card className="p-4 text-sm text-muted-foreground">
-        Crédito usado en {name}: <span className="num font-semibold text-foreground">{money(line.used)}</span>
+        Crédito usado en {name}: <span className="num font-semibold text-foreground">{money(line.used, false, cur)}</span>
         <div className="mt-1 text-xs">Agrega la línea de crédito de {name} en Ajustes (⚙) para ver cuánto tienes disponible.</div>
       </Card>
     );
@@ -479,14 +522,14 @@ function CreditLine({ name, line }: { name: string; line: ReturnType<typeof card
     <Card className="p-4">
       <div className="flex items-baseline justify-between">
         <div className="text-xs text-muted-foreground">Línea disponible · {name}</div>
-        <div className="num text-xs text-muted-foreground">de {money(line.limit)}</div>
+        <div className="num text-xs text-muted-foreground">de {money(line.limit, false, cur)}</div>
       </div>
-      <div className={cn("num font-display text-2xl font-bold", over ? "text-expense" : "text-income")}>{money(line.available ?? 0)}</div>
+      <div className={cn("num font-display text-2xl font-bold", over ? "text-expense" : "text-income")}>{money(line.available ?? 0, false, cur)}</div>
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
         <div className={cn("h-full rounded-full", usedPct > 85 ? "bg-expense" : usedPct > 60 ? "bg-warning" : "bg-primary")} style={{ width: `${usedPct}%` }} />
       </div>
       <div className="num mt-2 text-xs text-muted-foreground">
-        Usado {money(line.used)} · Consumos por pagar {money(line.gastos)} · En cuotas {money(line.cuotas)}
+        Usado {money(line.used, false, cur)} · Consumos por pagar {money(line.gastos, false, cur)} · En cuotas {money(line.cuotas, false, cur)}
       </div>
     </Card>
   );

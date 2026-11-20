@@ -227,8 +227,8 @@ export function project(
   for (let k = 0; k <= p.projection_months; k++) {
     const y = t.getFullYear();
     const m = t.getMonth() + k;
-    raw.push({ date: dayOf(y, m, p.mesada1_day), concept: "Mesada", amount: Number(p.mesada1_amount) });
-    raw.push({ date: dayOf(y, m, p.mesada2_day), concept: "Mesada", amount: Number(p.mesada2_amount) });
+    raw.push({ date: dayOf(y, m, p.mesada1_day), concept: "Sueldo", amount: Number(p.mesada1_amount) });
+    raw.push({ date: dayOf(y, m, p.mesada2_day), concept: "Sueldo", amount: Number(p.mesada2_amount) });
     for (const c of cards) {
       const payDate = dayOf(y, m, c.pay_day);
       const pay = cardPaymentOn(c, payDate, accounts, io, cuotas, bcp, today);

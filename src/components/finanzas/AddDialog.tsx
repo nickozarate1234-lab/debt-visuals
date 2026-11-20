@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { financeChanged } from "@/hooks/use-finance";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -78,6 +79,7 @@ export function AddDialog({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const a = Number(amount);
+    if ((kind === "io" || kind === "cuota") && !cId) { toast.error("Primero agrega una tarjeta de crédito en Ajustes"); return; }
     if ((kind !== "traspaso" && !desc.trim()) || !Number.isFinite(a) || a === 0) { toast.error("Completa monto y descripción"); return; }
     setBusy(true);
     let error;
@@ -141,6 +143,7 @@ export function AddDialog({
       return;
     }
     toast.success("Registrado");
+    financeChanged();
     reset();
     onOpenChange(false);
   };
@@ -163,6 +166,9 @@ export function AddDialog({
               { v: "deuda", l: "Deuda" },
             ]}
           />
+          {(kind === "io" || kind === "cuota") && cards.length === 0 && (
+            <p className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">No tienes tarjetas de crédito. Agrégala en Ajustes (⚙️) con su día de corte y de pago.</p>
+          )}
           {(kind === "io" || kind === "cuota") && cards.length > 1 && (
             <Picker label="Tarjeta" value={cId} onChange={setCardId} list={cards} />
           )}

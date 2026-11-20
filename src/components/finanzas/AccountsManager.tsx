@@ -2,6 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { CreditCard, Landmark, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { financeChanged } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Account } from "@/lib/finance";
@@ -25,11 +26,15 @@ function AccountRow({ a }: { a: Account }) {
       })
       .eq("id", a.id);
     if (error) toast.error(error.message);
-    else toast.success("Guardado");
+    else {
+      toast.success("Guardado");
+      financeChanged();
+    }
   };
   const toggleArchive = async () => {
     const { error } = await supabase.from("accounts").update({ archived: !a.archived }).eq("id", a.id);
     if (error) toast.error(error.message);
+    else financeChanged();
   };
   const Icon = a.kind === "credito" ? CreditCard : Landmark;
   return (
@@ -61,16 +66,38 @@ function AccountRow({ a }: { a: Account }) {
 export function AccountsManager({ userId, accounts }: { userId: string; accounts: Account[] }) {
   const [name, setName] = useState("");
   const [kind, setKind] = useState<"debito" | "credito">("debito");
+  const [cut, setCut] = useState("");
+  const [pay, setPay] = useState("");
+  const [limit, setLimit] = useState("");
+  const [busy, setBusy] = useState(false);
+  const day = (v: string) => (Number.isInteger(Number(v)) && Number(v) >= 1 && Number(v) <= 31 ? Number(v) : null);
   const add = async () => {
     if (!name.trim()) {
       toast.error("Ponle un nombre");
       return;
     }
-    const { error } = await supabase.from("accounts").insert({ user_id: userId, name: name.trim().slice(0, 40), kind });
+    const isCard = kind === "credito";
+    // Cards need both days: the projection uses them to know when each purchase is paid.
+    if (isCard && (!day(cut) || !day(pay))) {
+      toast.error("Pon el día de corte y el día de pago (1 a 31)");
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase.from("accounts").insert({
+      user_id: userId,
+      name: name.trim().slice(0, 40),
+      kind,
+      ...(isCard ? { cut_day: day(cut)!, pay_day: day(pay)!, credit_limit: Number(limit) > 0 ? Number(limit) : null } : {}),
+    });
+    setBusy(false);
     if (error) toast.error(error.message);
     else {
-      toast.success("Cuenta creada");
+      toast.success(isCard ? "Tarjeta creada" : "Cuenta creada");
       setName("");
+      setCut("");
+      setPay("");
+      setLimit("");
+      financeChanged();
     }
   };
   return (
@@ -83,14 +110,22 @@ export function AccountsManager({ userId, accounts }: { userId: string; accounts
         <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">
           {(["debito", "credito"] as const).map((k) => (
             <button key={k} type="button" onClick={() => setKind(k)} className={cn("rounded-lg py-1.5 text-sm font-semibold", kind === k ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
-              {k === "debito" ? "Débito" : "Crédito"}
+              {k === "debito" ? "Cuenta (débito)" : "Tarjeta de crédito"}
             </button>
           ))}
         </div>
-        <div className="flex gap-2">
-          <Input placeholder="Ej. BCP Latam" value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
-          <Button onClick={add} size="icon" aria-label="Agregar cuenta"><Plus /></Button>
-        </div>
+        <Input placeholder={kind === "credito" ? "Ej. BBVA Visa" : "Ej. BCP ahorros"} value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
+        {kind === "credito" && (
+          <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+            <label className="space-y-1">Día de corte<Input type="number" inputMode="numeric" min={1} max={31} value={cut} onChange={(e) => setCut(e.target.value)} placeholder="Ej. 25" className="h-9" /></label>
+            <label className="space-y-1">Día de pago<Input type="number" inputMode="numeric" min={1} max={31} value={pay} onChange={(e) => setPay(e.target.value)} placeholder="Ej. 12" className="h-9" /></label>
+            <label className="col-span-2 space-y-1">Línea de crédito (S/, opcional)<Input type="number" inputMode="decimal" step="0.01" value={limit} onChange={(e) => setLimit(e.target.value)} placeholder="Ej. 5000" className="h-9" /></label>
+            <p className="col-span-2">Están en tu estado de cuenta. Con ellos la app sabe cuándo pagas cada compra.</p>
+          </div>
+        )}
+        <Button onClick={add} disabled={busy} className="w-full rounded-xl">
+          <Plus /> {kind === "credito" ? "Agregar tarjeta" : "Agregar cuenta"}
+        </Button>
       </div>
     </div>
   );

@@ -38,6 +38,7 @@ export function VoucherButton({ userId, accounts }: { userId: string; accounts: 
 
   const onFile = async (f?: File) => {
     if (!f) return;
+    if (!refs.length) return void toast.error("Primero agrega una cuenta en Ajustes");
     setBusy(true);
     try {
       const image = await compress(f);

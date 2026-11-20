@@ -19,6 +19,10 @@ export function VoiceButton({ userId, accounts }: { userId: string; accounts: Ac
   const parse = useServerFn(parseVoice);
 
   const start = async () => {
+    if (!refs.length) {
+      toast.error("Primero agrega una cuenta en Ajustes");
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mime = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm"].find((m) => MediaRecorder.isTypeSupported(m));

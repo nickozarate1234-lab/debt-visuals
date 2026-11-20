@@ -89,6 +89,7 @@ export const Route = createFileRoute("/api/public/shortcut")({
         } else {
           const kind = d.tipo === "io" ? "credito" : "debito";
           acc = accounts.find((a) => a.legacy === d.tipo) ?? accounts.find((a) => a.kind === kind);
+          if (!acc && kind === "credito") return Response.json({ ok: false, mensaje: "No tienes tarjetas de crédito. Agrega una en Ajustes de la app." }, { status: 400 });
         }
 
         const fecha = d.fecha ?? limaToday();

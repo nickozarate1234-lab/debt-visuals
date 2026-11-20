@@ -6,7 +6,7 @@ import { AlertTriangle, CheckCircle2, CreditCard, LineChart, Plus, Receipt, Sett
 import { CuotasDialog } from "@/components/finanzas/CuotasDialog";
 import { PlanBanner, PlanSheet, usePlan } from "@/components/finanzas/PlanSheet";
 import { supabase } from "@/integrations/supabase/client";
-import { useFinanceData, useSession } from "@/hooks/use-finance";
+import { financeChanged, useFinanceData, useSession } from "@/hooks/use-finance";
 import { AuthScreen } from "@/components/finanzas/AuthScreen";
 import { AddDialog, type AddKind } from "@/components/finanzas/AddDialog";
 import { VoiceButton } from "@/components/finanzas/VoiceButton";
@@ -111,6 +111,7 @@ async function del(table: "bcp_movements" | "io_expenses" | "installments" | "de
     ? await supabase.from("bcp_movements").delete().eq("transfer_id", transferId)
     : await supabase.from(table).delete().eq("id", id);
   if (error) toast.error(error.message);
+  else financeChanged();
 }
 
 function App({ userId, demo = false }: { userId: string; demo?: boolean }) {
@@ -123,7 +124,8 @@ function App({ userId, demo = false }: { userId: string; demo?: boolean }) {
   const plan = usePlan(!demo);
 
   const openAdd = () => {
-    setAddKind(tab === "liquidez" ? "bcp" : tab === "cuotas" ? "deuda" : "io");
+    const hasCard = activeAccounts.some((a) => a.kind === "credito");
+    setAddKind(tab === "liquidez" || (tab === "resumen" && !hasCard) ? "bcp" : tab === "cuotas" ? "deuda" : "io");
     setAddOpen(true);
   };
 

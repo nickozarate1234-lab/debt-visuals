@@ -18,6 +18,44 @@ export function useSession() {
   return { session, ready };
 }
 
+/** Tell the app that data changed (after any write), so lists and the plan counter refresh without waiting for realtime. */
+export const FINANCE_CHANGED = "finance-changed";
+export const financeChanged = () => window.dispatchEvent(new CustomEvent(FINANCE_CHANGED));
+
+let ensuring: Promise<Account[]> | null = null;
+
+/**
+ * Every user has a default debit account (legacy "bcp", named "Mi cuenta", renamable): debit records saved
+ * without an account belong to it. If the user already made a debit account, that one becomes the default.
+ * Card records saved without an account (older versions) are given to the user's first card (legacy "io");
+ * no card is created by default. Single-flight, because several loads can start at once.
+ */
+function ensureBaseAccounts(prof: Profile, accs: Account[], orphanCardRecords: boolean): Promise<Account[]> {
+  const has = (legacy: string) => accs.some((x) => x.legacy === legacy);
+  const card = accs.find((x) => x.kind === "credito" && !x.legacy && !x.archived);
+  const adoptCard = orphanCardRecords && !has("io") && !!card;
+  if (has("bcp") && !adoptCard) return Promise.resolve(accs);
+  ensuring ??= (async () => {
+    if (!has("bcp")) {
+      const own = accs.find((x) => x.kind === "debito" && !x.legacy && !x.archived);
+      // All columns are sent: a missing NOT NULL column would be sent as null and reject the insert.
+      const { error } = own
+        ? await supabase.from("accounts").update({ legacy: "bcp" }).eq("id", own.id)
+        : await supabase.from("accounts").insert({ user_id: prof.user_id, name: "Mi cuenta", kind: "debito", legacy: "bcp", cut_day: prof.io_cut_day, pay_day: prof.io_pay_day });
+      if (error && error.code !== "23505") console.error("ensureBaseAccounts", error.message);
+    }
+    if (adoptCard) {
+      const { error } = await supabase.from("accounts").update({ legacy: "io" }).eq("id", card.id);
+      if (error && error.code !== "23505") console.error("ensureBaseAccounts", error.message);
+    }
+    const { data } = await supabase.from("accounts").select("*").order("created_at");
+    return (data ?? accs) as Account[];
+  })().finally(() => {
+    ensuring = null;
+  });
+  return ensuring;
+}
+
 export function useFinanceData(enabled: boolean, demo = false) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [bcp, setBcp] = useState<BcpMovement[]>([]);
@@ -38,18 +76,9 @@ export function useFinanceData(enabled: boolean, demo = false) {
       supabase.from("debts").select("*").order("created_at"),
       supabase.from("subscriptions").select("*").order("charge_day"),
     ]);
-    let accs = (a.data ?? []) as Account[];
     const prof = p.data as Profile | null;
-    if (prof && !accs.some((x) => x.legacy === "bcp") && !accs.some((x) => x.legacy === "io")) {
-      const { data } = await supabase
-        .from("accounts")
-        .insert([
-          { user_id: prof.user_id, name: "BCP", kind: "debito", legacy: "bcp" },
-          { user_id: prof.user_id, name: "iO", kind: "credito", legacy: "io", cut_day: prof.io_cut_day, pay_day: prof.io_pay_day },
-        ])
-        .select("*");
-      accs = (data ?? []) as Account[];
-    }
+    const orphanCardRecords = (i.data ?? []).some((x) => !x.account_id) || (c.data ?? []).some((x) => !x.account_id);
+    const accs = prof ? await ensureBaseAccounts(prof, (a.data ?? []) as Account[], orphanCardRecords) : ((a.data ?? []) as Account[]);
     setAccounts(accs);
     setDebts((d.data ?? []) as Debt[]);
     setProfile(p.data as Profile | null);
@@ -78,11 +107,16 @@ export function useFinanceData(enabled: boolean, demo = false) {
       .on("postgres_changes", { event: "*", schema: "public", table: "debts" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "subscriptions" }, load)
       .subscribe();
-    const onFocus = () => load();
-    window.addEventListener("focus", onFocus);
+    const refresh = () => void load();
+    const onVisible = () => document.visibilityState === "visible" && refresh();
+    window.addEventListener("focus", refresh);
+    window.addEventListener(FINANCE_CHANGED, refresh);
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       supabase.removeChannel(ch);
-      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener(FINANCE_CHANGED, refresh);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [enabled, demo, load]);
 

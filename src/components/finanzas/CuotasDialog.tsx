@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { financeChanged } from "@/hooks/use-finance";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -51,6 +52,7 @@ function Form({ expense, card, onClose }: { expense: IoExpense; card: Account; o
       return;
     }
     toast.success(`${expense.description} pasó a ${k} cuotas de ${money(m)}`);
+    financeChanged();
     onClose();
   };
 

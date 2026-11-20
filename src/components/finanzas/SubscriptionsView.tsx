@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { financeChanged } from "@/hooks/use-finance";
 import { toast } from "sonner";
 import { CalendarClock, Plus, Repeat, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,11 +26,13 @@ export function SubscriptionsView({ subs, accounts, userId }: { subs: Subscripti
   const toggle = async (s: Subscription, active: boolean) => {
     const { error } = await supabase.from("subscriptions").update({ active }).eq("id", s.id);
     if (error) toast.error(error.message);
+    else financeChanged();
   };
   const remove = async (s: Subscription) => {
     if (!confirm(`¿Eliminar ${s.name}?`)) return;
     const { error } = await supabase.from("subscriptions").delete().eq("id", s.id);
     if (error) toast.error(error.message);
+    else financeChanged();
   };
 
   return (
@@ -131,6 +134,7 @@ function SubDialog({ open, onOpenChange, accounts, userId }: { open: boolean; on
       return;
     }
     toast.success(`${name} agregada`);
+    financeChanged();
     setName("");
     setAmount("");
     onOpenChange(false);

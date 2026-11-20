@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { Check, Crown, Loader2, Sparkles } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { FINANCE_CHANGED } from "@/hooks/use-finance";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cancelMySubscription, confirmReturn, startCheckout } from "@/lib/billing.functions";
@@ -13,7 +14,7 @@ import { cn } from "@/lib/utils";
 const soles = (n: number) => `S/ ${n.toFixed(2)}`;
 const PLAN_CHANGED = "plan-changed";
 
-/** Current plan of the signed-in user; refreshes when a payment is confirmed. */
+/** Current plan of the signed-in user; refreshes after a payment, after any record change and when the plans sheet opens. */
 export function usePlan(enabled = true) {
   const [plan, setPlan] = useState<MyPlan | null>(null);
   const load = useCallback(async () => {
@@ -24,8 +25,9 @@ export function usePlan(enabled = true) {
   useEffect(() => {
     void load();
     const on = () => void load();
-    window.addEventListener(PLAN_CHANGED, on);
-    return () => window.removeEventListener(PLAN_CHANGED, on);
+    const events = [PLAN_CHANGED, FINANCE_CHANGED, "open-paywall"];
+    events.forEach((e) => window.addEventListener(e, on));
+    return () => events.forEach((e) => window.removeEventListener(e, on));
   }, [load]);
   return plan;
 }
@@ -58,9 +60,22 @@ export function PlanSheet({ plan }: { plan: MyPlan | null }) {
   const cancel = useServerFn(cancelMySubscription);
 
   useEffect(() => {
-    const on = () => setOpen(true);
+    const on = () => {
+      setBusy(false);
+      setOpen(true);
+    };
+    // Coming back from Mercado Pago (back button, or closing the checkout over the installed app) shows this
+    // page as it was, spinner included: reset it.
+    const onShow = () => setBusy(false);
+    const onVisible = () => document.visibilityState === "visible" && setBusy(false);
     window.addEventListener("open-paywall", on);
-    return () => window.removeEventListener("open-paywall", on);
+    window.addEventListener("pageshow", onShow);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("open-paywall", on);
+      window.removeEventListener("pageshow", onShow);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   // Back from Mercado Pago: ?pago=ok&payment_id=… or ?suscripcion=ok&preapproval_id=…
@@ -105,7 +120,13 @@ export function PlanSheet({ plan }: { plan: MyPlan | null }) {
   const subActive = plan?.subscription?.status === "authorized";
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) setBusy(false);
+      }}
+    >
       <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto rounded-2xl border-border bg-popover">
         <DialogHeader>
           <DialogTitle className="font-display flex items-center gap-2">

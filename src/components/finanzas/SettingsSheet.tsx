@@ -11,10 +11,10 @@ import { AccountsManager } from "./AccountsManager";
 import { openPaywall } from "@/lib/plans";
 
 const FIELDS: { k: keyof Profile; l: string; type?: string }[] = [
-  { k: "mesada1_day", l: "Mesada 1 · día" },
-  { k: "mesada1_amount", l: "Mesada 1 · monto" },
-  { k: "mesada2_day", l: "Mesada 2 · día" },
-  { k: "mesada2_amount", l: "Mesada 2 · monto" },
+  { k: "mesada1_day", l: "Sueldo 1 · día" },
+  { k: "mesada1_amount", l: "Sueldo 1 · monto" },
+  { k: "mesada2_day", l: "Sueldo 2 · día" },
+  { k: "mesada2_amount", l: "Sueldo 2 · monto" },
   { k: "projection_months", l: "Meses a proyectar" },
 ];
 

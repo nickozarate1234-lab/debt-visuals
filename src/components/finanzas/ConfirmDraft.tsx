@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { financeChanged } from "@/hooks/use-finance";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -41,6 +42,7 @@ export function ConfirmDraft({
     if (isLimitError(error)) { toast.error("Llegaste a tus registros gratis"); setDraft(null); openPaywall(); return; }
     if (error) { toast.error(error.message); return; }
     toast.success(`${successMsg} en ${acc.name}`);
+    financeChanged();
     setDraft(null);
   };
 

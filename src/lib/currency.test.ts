@@ -60,6 +60,15 @@ describe("projection in the main currency", () => {
     expect(ev.amount).toBeCloseTo(-68.6);
   });
 
+  it("projects a subscription paid with a card on that card's pay date, not on the charge date", () => {
+    const sub: Subscription = { id: "s", name: "Netflix", amount: 10, cycle: "mensual", charge_day: 3, charge_month: null, category: "Suscripciones", pay_account_id: "card", active: true, currency: "USD" };
+    const evs = project({ ...profile, projection_months: 3 }, bcp, [], [], "2026-11-20", accounts, [], [sub], fx).events.filter((e) => e.concept.startsWith("Suscripción Netflix"));
+    // Charged 03/12 (before the cut on the 5th) → paid 28/01; the 03/01 charge is paid 28/02, after the 3-month window.
+    expect(evs).toHaveLength(1);
+    expect(evs[0]).toMatchObject({ date: "2027-01-28", concept: "Suscripción Netflix (BBVA $)", cur: "USD", original: -10 });
+    expect(evs[0]!.amount).toBeCloseTo(-34.3);
+  });
+
   it("shows everything in dollars when that is the main currency", () => {
     expect(project(profile, bcp, [], [], "2026-11-20", accounts, [], [], { main: "USD", rate: 3.43 }).start).toBeCloseTo(1900 / 3.43 + 800);
   });

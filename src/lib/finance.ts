@@ -278,8 +278,15 @@ export function project(
 
   for (const s of subs) {
     const acc = accounts.find((a) => a.id === s.pay_account_id);
-    if (acc?.kind === "credito") continue; // charged on the card; shows up in the card payment once registered
     const cur = asCur(s.currency);
+    if (acc?.kind === "credito") {
+      // Paid with a card: each future charge (not registered yet) is paid on that card's pay date for the charge's cycle.
+      if (acc.archived) continue;
+      for (const charge of subDates(s, today, limit)) {
+        raw.push({ date: ioPayDate(charge, cycle(acc)), concept: `Suscripción ${s.name} (${acc.name})`, amount: -conv(Number(s.amount), cur, fx), cur, original: -Number(s.amount) });
+      }
+      continue;
+    }
     for (const date of subDates(s, today, limit)) raw.push({ date, concept: `Suscripción ${s.name}`, amount: -conv(Number(s.amount), cur, fx), cur, original: -Number(s.amount) });
   }
   const events = raw

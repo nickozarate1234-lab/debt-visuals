@@ -200,7 +200,7 @@ function SubDialog({ open, onOpenChange, accounts, userId, mainCur }: { open: bo
                 <option key={a.id} value={a.id}>{a.name} ({a.kind === "credito" ? "crédito" : "débito"})</option>
               ))}
             </select>
-            <p className="text-xs text-muted-foreground">Si es débito, se descuenta en tu proyección. Si es tarjeta, entra al pago de esa tarjeta cuando registres el cargo.</p>
+            <p className="text-xs text-muted-foreground">Se descuenta en tu proyección: si es débito, el día del cobro; si es tarjeta, en el pago de esa tarjeta. Cuando te cobren, regístralo como siempre.</p>
           </div>
           <Button onClick={save} disabled={saving} className="mt-1 h-11 rounded-xl">Guardar</Button>
         </div>

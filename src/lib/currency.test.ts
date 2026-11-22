@@ -63,9 +63,9 @@ describe("projection in the main currency", () => {
   it("projects a subscription paid with a card on that card's pay date, not on the charge date", () => {
     const sub: Subscription = { id: "s", name: "Netflix", amount: 10, cycle: "mensual", charge_day: 3, charge_month: null, category: "Suscripciones", pay_account_id: "card", active: true, currency: "USD" };
     const evs = project({ ...profile, projection_months: 3 }, bcp, [], [], "2026-11-20", accounts, [], [sub], fx).events.filter((e) => e.concept.startsWith("Suscripción Netflix"));
-    // Charged 03/12 (before the cut on the 5th) → paid 28/01; the 03/01 charge is paid 28/02, after the 3-month window.
-    expect(evs).toHaveLength(1);
-    expect(evs[0]).toMatchObject({ date: "2027-01-28", concept: "Suscripción Netflix (BBVA $)", cur: "USD", original: -10 });
+    // Cut on the 5th, paid on the 28th of the same month: 03/12 → 28/12, 03/01 → 28/01; 03/02 → 28/02 is after the 3-month window.
+    expect(evs.map((e) => e.date)).toEqual(["2026-12-28", "2027-01-28"]);
+    expect(evs[0]).toMatchObject({ concept: "Suscripción Netflix (BBVA $)", cur: "USD", original: -10 });
     expect(evs[0]!.amount).toBeCloseTo(-34.3);
   });
 
@@ -83,7 +83,7 @@ describe("projection in the main currency", () => {
 
 describe("paying a dollar card from a soles account", () => {
   it("credits the card with card_amount, not the soles that left the account", () => {
-    const io = [{ id: "e", date: "2026-10-03", description: "Amazon", category: "Otros", amount: 45, account_id: "card" }];
+    const io = [{ id: "e", date: "2026-11-03", description: "Amazon", category: "Otros", amount: 45, account_id: "card" }];
     const pay = mov("m3", -102.9, "sol", { paid_card_id: "card", card_amount: 30, date: "2026-11-20" });
     expect(cardPaymentOn(accounts[2]!, "2026-11-28", accounts, io, [], [pay], "2026-11-20")).toMatchObject({ paid: 30, due: 15 });
   });

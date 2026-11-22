@@ -96,11 +96,17 @@ export const fmtDate = (s: string | null) => {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
 };
 
-/** iO pay date: purchases up to the cut day are paid next month, after it the month after. */
+/**
+ * Card pay date of a purchase: the statement closes on the first cut day on or after the purchase, and is paid
+ * on the first pay day after that cut. Works when the pay day falls in the cut's month (cut 5, pay 28 → 28th of
+ * the same month) and when it falls in the next month (cut 25, pay 12 → 12th of the next month).
+ */
 export const ioPayDate = (date: string, p: Pick<Profile, "io_cut_day" | "io_pay_day">) => {
   const d = parse(date);
-  const months = d.getDate() <= p.io_cut_day ? 1 : 2;
-  return dayOf(d.getFullYear(), d.getMonth() + months, p.io_pay_day);
+  const cut = dayOf(d.getFullYear(), d.getMonth() + (d.getDate() <= p.io_cut_day ? 0 : 1), p.io_cut_day);
+  const c = parse(cut);
+  const same = dayOf(c.getFullYear(), c.getMonth(), p.io_pay_day);
+  return same > cut ? same : dayOf(c.getFullYear(), c.getMonth() + 1, p.io_pay_day);
 };
 
 /** The card's pay date on or after `date` (a card that pays on day `payDay` of each month). */

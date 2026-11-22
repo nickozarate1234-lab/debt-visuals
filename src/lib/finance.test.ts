@@ -4,6 +4,7 @@ import {
   installmentActive,
   installmentDueDates,
   installmentLast,
+  ioPayDate,
   ioPaymentOn,
   nextPayDate,
   project,
@@ -43,6 +44,23 @@ describe("nextPayDate", () => {
   it("moves to the same month when the pay day is still ahead", () => expect(nextPayDate("2026-11-05", 12)).toBe("2026-11-12"));
   it("moves to next month when the pay day already passed", () => expect(nextPayDate("2026-11-18", 12)).toBe("2026-12-12"));
   it("clamps pay day 31 to short months", () => expect(nextPayDate("2027-02-10", 31)).toBe("2027-02-28"));
+});
+
+describe("ioPayDate", () => {
+  const io = { io_cut_day: 25, io_pay_day: 12 };
+  const bbva = { io_cut_day: 5, io_pay_day: 28 };
+  it("pay day before the cut: paid next month", () => {
+    expect(ioPayDate("2026-11-14", io)).toBe("2026-12-12");
+    expect(ioPayDate("2026-11-25", io)).toBe("2026-12-12");
+    expect(ioPayDate("2026-11-26", io)).toBe("2027-01-12");
+  });
+  it("pay day after the cut: paid the same month as the cut", () => {
+    expect(ioPayDate("2026-12-03", bbva)).toBe("2026-12-28");
+    expect(ioPayDate("2026-12-05", bbva)).toBe("2026-12-28");
+    expect(ioPayDate("2026-11-14", bbva)).toBe("2026-12-28");
+  });
+  it("same cut and pay day: paid next month", () => expect(ioPayDate("2026-11-10", { io_cut_day: 15, io_pay_day: 15 })).toBe("2026-12-15"));
+  it("clamps day 31 in short months", () => expect(ioPayDate("2027-02-10", { io_cut_day: 31, io_pay_day: 20 })).toBe("2027-03-20"));
 });
 
 describe("installmentDueDates", () => {
